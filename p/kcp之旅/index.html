@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en-us">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='A crazy version of KCP written by Swift'><title>KCP之旅</title>
+
+<link rel='canonical' href='https://zjregee.github.io/p/kcp%E4%B9%8B%E6%97%85/'>
+
+<link rel="stylesheet" href="/scss/style.min.css"><meta property='og:title' content='KCP之旅'>
+<meta property='og:description' content='A crazy version of KCP written by Swift'>
+<meta property='og:url' content='https://zjregee.github.io/p/kcp%E4%B9%8B%E6%97%85/'>
+<meta property='og:site_name' content='regee&#39;s Blog'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='Swift' /><meta property='article:tag' content='计算机网络' /><meta property='article:published_time' content='2021-10-04T00:00:00&#43;00:00'/><meta property='article:modified_time' content='2021-10-04T00:00:00&#43;00:00'/>
+<meta name="twitter:title" content="KCP之旅">
+<meta name="twitter:description" content="A crazy version of KCP written by Swift">
+    </head>
+    <body class="
+    article-page has-toc
+">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "dark");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex 
+    
+        extended
+    
+">
+    
+        <div id="article-toolbar">
+            <a href="https://zjregee.github.io" class="back-home">
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-chevron-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="15 6 9 12 15 18" />
+</svg>
+
+
+
+                <span>Back</span>
+            </a>
+        </div>
+    
+<main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+    <header class="article-category">
+        
+            <a href="/categories/%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/" >
+                学习笔记
+            </a>
+        
+    </header>
+    
+
+    <h2 class="article-title">
+        <a href="/p/kcp%E4%B9%8B%E6%97%85/">KCP之旅</a>
+    </h2>
+
+    
+    <h3 class="article-subtitle">
+        A crazy version of KCP written by Swift
+    </h3>
+    
+
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Oct 04, 2021</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    1 min read
+                </time>
+            </div>
+        
+    </footer>
+    
+</div>
+</header>
+
+    <section class="article-content">
+    <p>最近在写一个KCP的Swift实现，项目在https://github.com/zjregee/kcp-swift，把拥塞窗口去掉了，以及把大量不安全的指针运算用数组高层代替了。或许以后可以考虑在其上实现其他一些版本的拥塞控制和方法</p>
+<p>项目参考了KCP的C源码https://github.com/zjregee/kcp以及一定的Swift版本的https://github.com/rannger/kcp-swift</p>
+<h3 id="介绍一下kcp">介绍一下KCP</h3>
+<p>KCP是基于UDP协议之上的ARQ协议实现。TCP虽然使用的更广泛，但是在某些实时性更高的领域，会更倾向于使用基于UDP的可靠传输协议</p>
+<p>KCP力求在保证可靠性的情况下提高传输速度</p>
+<p>KCP没有规定下层传输协议，但通常使用UDP来实现</p>
+<p>在网络中，我们认为传输是不可靠的，而在很多场景下我们需要的是可靠的数据，所谓的可靠，指的是数据能够正常收到，且能够顺序受到，于是就有了ARQ协议，TCP之所以可靠就是基于此</p>
+<p>ARQ协议（Automatic Repeat-reQuest），即自动重传请求，是传输层的错误纠正协议之一，它通过使用确认和超时两个机制，在不可靠的网络上实现可靠的信息传输</p>
+<h3 id="基本特征">基本特征</h3>
+<ul>
+<li>RTO不翻倍</li>
+<li>选择性重传</li>
+<li>快速重传</li>
+<li>非延迟ACK
+<ul>
+<li>TCP在连续ARQ协议中，不会将一连串的每个数据都响应一次，而是延迟发送ACK，目的是为了充分利用带宽，但是这样会计算出较大的RTT时间，延长了丢包时的判断过程，而KCP的ACK是否延迟发送可以调节</li>
+</ul>
+</li>
+<li>UNA+ACK
+<ul>
+<li>UNA模式参考特征2和特征4，ACK模式可以参考特征3。4字节una表示cmd=81时，当前已经收到了小于una的所有数据</li>
+</ul>
+</li>
+<li>非退让流控</li>
+</ul>
+<p>至于通常使用UDP来实现KCP的原因，第一个是UDP的头部相对于TCP的头部来说更小，第二个是KCP相对于TCP来说有太多的冗余功能，这样白白导致了很多不必要的开销</p>
+<h3 id="核心函数">核心函数</h3>
+<p>KCP的核心在于四个函数的实现，在这里简单介绍一下四个函数的流程</p>
+<h4 id="ikcp_send">ikcp_send</h4>
+<ul>
+<li>检查是否是流模式，需要合并包，将buffer中的数据尽可能的追加到snd_queue中的最后一个报文</li>
+<li>计算分片数量</li>
+<li>创建多个报文段对象加入snd_queue</li>
+</ul>
+<h4 id="ikcp_flush">ikcp_flush</h4>
+<ul>
+<li>检查ikcp_update是否被调用</li>
+<li>将所有ACK报文写入buffer</li>
+<li>确定是否需要发送探测报文</li>
+<li>检查是否需要发送窗口探测报文，需要的话将报文写入buffer</li>
+<li>检查是否需要发送窗口通知报文，需要的话将报文写入buffer</li>
+<li>计算拥塞窗口</li>
+<li>根据拥塞窗口将数据报文从snd_queue移动到snd_buf</li>
+<li>判断快速重传条件，跳过次数以及超时时间</li>
+<li>将snd_buf中满足条件的报文都发送出去</li>
+<li>将buffer中剩余报文全部发送</li>
+<li>根据丢包情况计算ssthresh和cwnd</li>
+</ul>
+<p><strong>Tips</strong></p>
+<ul>
+<li>发送报文不是将snd_buf中的一一发送，而是必须都先写入buf</li>
+<li>在写新报文到buf之前，需要判断buf大小是否过大，将要过大时直接将buf一次性发送</li>
+<li>ptr、buffer、snd_queue、snd_buf</li>
+</ul>
+<h4 id="ikcp_input">ikcp_input</h4>
+<ul>
+<li>循环从收到的data里解包出报文段，为各个字段赋值</li>
+<li>调用ikcp_parse_una，根据una将相应已确认送达的报文从snd_buf中删除</li>
+<li>调用ikcp_shrink_buf，尝试向右移动snd_una</li>
+<li>如果cmd==IKCP_CMD_ACK，即收到了ACK报文
+<ul>
+<li>计算RTO</li>
+<li>将已确认送达的报文从snd_buf中删除</li>
+<li>尝试向右移动snd_una</li>
+<li>计算出这次input得到的最大ACK编号</li>
+</ul>
+</li>
+<li>如果cmd==IKCP_CMD_PUSH，即收到了数据报文
+<ul>
+<li>调用ikcp_ack_push将相关信息插入ACK列表中</li>
+<li>调用ikcp_parse_data，将数据报文插入rcv_buf</li>
+<li>在ikcp_parse_data中，会尽可能的将顺序正确的报文移入到rcv_queue中</li>
+</ul>
+</li>
+<li>如果cmd==IKCP_CMD_WASK，标记需要发送窗口通知报文</li>
+<li>如果cmd==IKCP_CMD_WINS，什么都不用做，因为wnd字段前面已经取得了</li>
+<li>调用ikcp_parse_fastack，检查snd_buf中编号小于maxack且未确认送达的报文，将其fastack加一，说明被跳过了</li>
+<li>计算cwnd</li>
+</ul>
+<h4 id="ikcp_recv">ikcp_recv</h4>
+<ul>
+<li>调用ikcp_peeksize，获取rcv_queue中第一个包的大小，因为需要考虑到分片</li>
+<li>取出第一个包读入buffer</li>
+<li>rcv_queue空些了，再尝试从rcv_buf中取些报文到rcv_queue</li>
+<li>fast recover</li>
+</ul>
+<h3 id="拓展阅读">拓展阅读</h3>
+<ul>
+<li><a class="link" href="http://kaiyuan.me/2017/07/29/KCP%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90/"  target="_blank" rel="noopener"
+    >http://kaiyuan.me/2017/07/29/KCP%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90/</a></li>
+<li><a class="link" href="https://www.codedump.info/post/20201105-kcp/"  target="_blank" rel="noopener"
+    >https://www.codedump.info/post/20201105-kcp/</a></li>
+<li><a class="link" href="https://luyuhuang.tech/2020/12/09/kcp.html"  target="_blank" rel="noopener"
+    >https://luyuhuang.tech/2020/12/09/kcp.html</a></li>
+</ul>
+
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/swift/">Swift</a>
+        
+            <a href="/tags/%E8%AE%A1%E7%AE%97%E6%9C%BA%E7%BD%91%E7%BB%9C/">计算机网络</a>
+        
+    </section>
+
+
+    </footer>
+
+
+    
+</article>
+
+    <aside class="related-contents--wrapper">
+    
+    
+        <h2 class="section-title">Related contents</h2>
+        <div class="related-contents">
+            <div class="flex article-list--tile">
+                
+                    
+<article class="">
+    <a href="/p/memory-safety-in-swift/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Memory safety in Swift</h2>
+        </div>
+    </a>
+</article>
+                
+                    
+<article class="">
+    <a href="/p/%E5%87%BD%E6%95%B0%E5%BC%8Fswift%E5%88%9D%E6%AD%A5/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">函数式Swift初步</h2>
+        </div>
+    </a>
+</article>
+                
+                    
+<article class="">
+    <a href="/p/raft%E4%B8%AD%E7%9A%84%E5%8A%A0%E9%80%9F%E6%97%A5%E5%BF%97%E5%9B%9E%E6%BA%AF/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Raft中的加速日志回溯</h2>
+        </div>
+    </a>
+</article>
+                
+                    
+<article class="">
+    <a href="/p/xv6%E7%B3%BB%E5%88%97%E5%AF%BC%E8%AF%BB%E4%B9%8Blocking/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Xv6系列导读之Locking</h2>
+        </div>
+    </a>
+</article>
+                
+                    
+<article class="">
+    <a href="/p/%E4%BB%8E%E4%B8%80%E4%B8%AAlab%E7%90%86%E8%A7%A3%E5%8D%8F%E7%A8%8B/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">从一个Lab理解协程</h2>
+        </div>
+    </a>
+</article>
+                
+            </div>
+        </div>
+    
+</aside>
+
+     
+     
+        
+    
+
+    <footer class="site-footer">
+    <section class="copyright">
+        &copy; 
+        
+            2020 - 
+        
+        2023 regee&#39;s Blog
+    </section>
+    
+    <section class="powerby">
+        Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> <br />
+        Theme <b><a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener" data-version="3.1.0">Stack</a></b> designed by <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a>
+    </section>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer="true"
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer="true"
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.css"integrity="sha256-c0uckgykQ9v5k&#43;IqViZOZKc47Jn7KQil4/MP3ySA3F8="crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.css"integrity="sha256-SBLU4vv6CA6lHsZ1XyTdhyjJxCjPif/TRkjnsyGAGnE="crossorigin="anonymous"
+            >
+
+            </main>
+    
+        <aside class="sidebar right-sidebar sticky">
+            <section class="widget archives">
+                <div class="widget-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+                </div>
+                <h2 class="widget-title section-title">Table of contents</h2>
+                
+                <div class="widget--toc">
+                    <nav id="TableOfContents">
+  <ol>
+    <li>
+      <ol>
+        <li><a href="#介绍一下kcp">介绍一下KCP</a></li>
+        <li><a href="#基本特征">基本特征</a></li>
+        <li><a href="#核心函数">核心函数</a>
+          <ol>
+            <li><a href="#ikcp_send">ikcp_send</a></li>
+            <li><a href="#ikcp_flush">ikcp_flush</a></li>
+            <li><a href="#ikcp_input">ikcp_input</a></li>
+            <li><a href="#ikcp_recv">ikcp_recv</a></li>
+          </ol>
+        </li>
+        <li><a href="#拓展阅读">拓展阅读</a></li>
+      </ol>
+    </li>
+  </ol>
+</nav>
+                </div>
+            </section>
+        </aside>
+    
+
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.5/dist/vibrant.min.js"integrity="sha256-5NovOZc4iwiAWTYIFiIM7DxKUXKWvpVEuMEPLzcm5/g="crossorigin="anonymous"
+                defer="false"
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

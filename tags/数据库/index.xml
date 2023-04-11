@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>数据库 on regee&#39;s Blog</title>
+    <link>https://zjregee.github.io/tags/%E6%95%B0%E6%8D%AE%E5%BA%93/</link>
+    <description>Recent content in 数据库 on regee&#39;s Blog</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>en-us</language>
+    <lastBuildDate>Thu, 28 Oct 2021 00:00:00 +0000</lastBuildDate><atom:link href="https://zjregee.github.io/tags/%E6%95%B0%E6%8D%AE%E5%BA%93/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>简易数据库实现：从0到1</title>
+      <link>https://zjregee.github.io/p/%E7%AE%80%E6%98%93%E6%95%B0%E6%8D%AE%E5%BA%93%E5%AE%9E%E7%8E%B0%E4%BB%8E0%E5%88%B01/</link>
+      <pubDate>Thu, 28 Oct 2021 00:00:00 +0000</pubDate>
+      
+      <guid>https://zjregee.github.io/p/%E7%AE%80%E6%98%93%E6%95%B0%E6%8D%AE%E5%BA%93%E5%AE%9E%E7%8E%B0%E4%BB%8E0%E5%88%B01/</guid>
+      <description>从最基本的层面看，数据库只需要做两件事：向它插入数据时，它就保存数据；之后查询时，它应该返回那些数据。
+我们先来看两个Bash函数。
+#!/bin/bash db_set() { echo &amp;#34;$1,$2&amp;#34; &amp;gt;&amp;gt; database } db_get() { grep &amp;#34;^$1,&amp;#34; database | sed -e &amp;#34;s/^$1,//&amp;#34; | tail -n 1 } 这两个函数实现了一个key-value存储。当调用db_set key value，它将在数据库中保存你输入的key和value。然后，调用db_get key，它会查找与输入key相关联的最新值并返回。
+它底层的存储格式非常简单：一个纯文本文件。其中每行包含一个key-value对，用逗号分隔。每次调用db_set即追加新内容到文件末尾，因此，如果多次更新某个键，旧版本的值不会被覆盖，而是需要查看文件中最后一次出现的键来找到最新的值，
+显然，到这里我们已经实现了之前我们提到的两个需求，插入数据和查询数据。从这个角度看，世界上最简单的数据库就这样完成了。对于简单的情况，追加到文件尾部方式通常足够高效。另一方面，如果日志文件保存了大量的记录，那么db_get函数的性会非常差。每次想查找一个键，db_get必须从头到尾扫描整个数据库文件来查找键的出现位置。
+为了高效地查找数据库中特定键的值以及满足各种操作的需要，我们需要新的更为复杂的数据结构。实现一个数据库的方式有很多，索引结构也有很多类型，在这里我们以github的一个6k star的sqlite demo为例，介绍一个B-Tree的数据库实现。
+项目地址：https://github.com/cstack/db_tutorial
+配备文档：https://cstack.github.io/db_tutorial/
+可以直接看源码，不超过一千行的实现，源码非常好理解。
+B-tree B-tree被广泛用作索引结构。作为一种1970年推出的数据结构，时至今日，它仍然是几乎所有关系数据库中的标准索引实现，许多非关系型数据库也经常使用。B-tree将数据库分解为固定大小的块或页，传统上大小为4KB，页是内部读/写的最小单元。这种设计更接近底层硬件。
+篇幅受限，这里不过多介绍B-tree的基本知识，想要详细的了解可以Google更多资料。
+数据库设计 上图是sqlite的架构设计。一个数据库查询，会通过一系列组件来检索或修改数据。
+前端包括：
+tokenizer parser code generator 前端的输入是一个SQL查询，输出是sqlite虚拟机字节码。在我们的demo里前端的主要功能就是解析并检查SQL命令，调用对应的函数执行相应的操作。
+后端包括：
+virtual machine：虚拟机把由前端生成的字节码作为指令。然后它可以对一个或多个表或索引进行操作，每个表或索引都存储在一个B树中。虚拟机本质上是一个关于字节码指令类型的switch语句。 B-tree：每个B树由许多节点组成。每个节点大小为1页，也就是4KB。B树可以通过向Pager发出命令从磁盘上检索一个页面或将其保存回磁盘。 pager：pager接受读取或写入数据页的命令。它负责读取/写入数据库文件中适当的偏移量。它还在内存中保存最近访问的页面的缓存，并确定何时需要将这些页面写回磁盘。 os interface：提供相应的系统调用。 我们给我们的数据库一些限制条件以简化编程：
+支持两种操作：插入一行和打印出所有行。 支持一个单一且硬编码的表。 上图是一个数据库中B树的存储结构的示例。叶子结点和中间节点有不同的布局。每个节点对应着1页。中间节点通过存储子节点的页号来指向子节点。B树传给pager特定的页号，pager从页缓存中返回指向对应页的指针。所有页都按照页号的顺序连续存储在数据库文件中。
+节点需要在页的头部存储一些元数据。每一个节点会存储节点种类，是否是根节点，以及父节点的页号（从而允许寻找兄弟节点的操作）。下面是每一个节点都需要的元数据大小和偏移的定义。
+/* * Common Node Header Layout */ const uint32_t NODE_TYPE_SIZE = sizeof(uint8_t); const uint32_t NODE_TYPE_OFFSET = 0; const uint32_t IS_ROOT_SIZE = sizeof(uint8_t); const uint32_t IS_ROOT_OFFSET = NODE_TYPE_SIZE; const uint32_t PARENT_POINTER_SIZE = sizeof(uint32_t); const uint32_t PARENT_POINTER_OFFSET = IS_ROOT_OFFSET + IS_ROOT_SIZE; const uint8_t COMMON_NODE_HEADER_SIZE = NODE_TYPE_SIZE + IS_ROOT_SIZE + PARENT_POINTER_SIZE; 除了这些常规的元数据，叶子节点还需要存储保存了多少key/value对。</description>
+    </item>
+    
+    <item>
+      <title>Redis中的事务实现</title>
+      <link>https://zjregee.github.io/p/redis%E4%B8%AD%E7%9A%84%E4%BA%8B%E5%8A%A1%E5%AE%9E%E7%8E%B0/</link>
+      <pubDate>Mon, 11 Oct 2021 00:00:00 +0000</pubDate>
+      
+      <guid>https://zjregee.github.io/p/redis%E4%B8%AD%E7%9A%84%E4%BA%8B%E5%8A%A1%E5%AE%9E%E7%8E%B0/</guid>
+      <description>今天在看《Redis设计与实现》，没想到看的很快，感觉这本书还是非常通俗易懂的，对Redis的实际实现也讲的比较全面，对于像我一样的小白还是非常推荐的。在这里介绍一下Redis中的事务
+Abstract 为啥要取abstract，可能是因为最近看论文有点PTSD了
+Redis通过MULTI、EXEC、WATCH等命令来实现事务功能。事务提供了一种将多个命令请求打包，然后一次性、按顺序地执行多个命令的机制，并且在事务执行期间，服务器不会中断事务而改去执行其他客户端的命令请求，它会将事务中的所有命令都执行完毕，然后才去处理其他客户端的命令请求
+事务的实现 一个事务从开始到结束通常会经历以下三个阶段：
+事务开始 命令入队 事务执行 事务开始 MULTI命令的执行标志着事务的开始
+将执行该命令的客户端从非事务状态切换至事务状态，这一切换是通过在客户端状态的flags属性中打开REDIS_MULTI标识来完成的
+这里的客户端指的是在Redis服务器中存着客户端状态的数据结构
+命令入队 当一个客户端处于非事务状态时，这个客户端发送的命令会立即被服务器执行
+但是，当一个客户端切换到事务状态之后，服务器会根据这个客户端发来的不同命令执行不同的操作
+如果客户端发送的命令为EXEC、DISCARD、WATCH、MULTI四个命令的其中一个，那么服务器立即执行这个命令 如果客户端发送的命令是EXEC、DISCARD、WATCH、MULTI四个命令以外的其他命令，那么服务器并不立即执行这个命令，而是将这个命令放入一个事务队列里面，然后向客户端返回QUEUED回复 事务队列 每个Redis客户端都有自己的事务状态，这个事务状态保存在客户端状态的mstate属性里面
+事务状态包含一个FIFO的事务队列，以及一个已入队命令的计数器，也就是事务队列的长度
+事务队列是一个multiCmd类型的数组，数组中的每个multiCmd结构都保存了一个已入队命令的相关信息，包括指向命令实现函数的指针、命令的参数，以及参数的数量
+typedef struct redisClient { // ... multiState mstate; // ... } redisClient; typedef struct multiState { multiCmd *commands; int count; } multiState; typedef struct multiCmd { robj **argv; // 参数 int argc; // 参数数量 struct redisCommand *cmd; // 命令指针 } multiCmd; 执行事务 当一个处于事务状态的客户端向服务器发送EXEC命令时，这个EXEC命令将立即被服务器执行。服务器会变遍历这个客户端的事务队列，执行队列中保存的所有命令，最后将执行命令所得的结果全部返回给客户端
+WATCH命令的实现 WATCH命令是一个乐观锁，他可以在EXEC命令执行之前，监视任意数量的数据库键，并在EXEC命令执行时，检查被监视的键是否至少有一个已经被修改过了，如果是的话，服务器将拒绝执行事务，并向客户端返回代表事务执行失败的空回复
+接下来介绍下WATCH命令的实现原理，以及事务系统如何监视某个键，并在键被修改的情况下，确保事务的安全性
+使用WATCH命令监视数据库键 每个Redis数据库都保存着一个watched_keys字典，这个字典的键是某个被WATCH命令监视的数据库键，字典的值则是一个链表，链表中记录了所有监视相应数据库键的客户端</description>
+    </item>
+    
+    <item>
+      <title>Bitcask实现简介</title>
+      <link>https://zjregee.github.io/p/bitcask%E5%AE%9E%E7%8E%B0%E7%AE%80%E4%BB%8B/</link>
+      <pubDate>Fri, 10 Sep 2021 00:00:00 +0000</pubDate>
+      
+      <guid>https://zjregee.github.io/p/bitcask%E5%AE%9E%E7%8E%B0%E7%AE%80%E4%BB%8B/</guid>
+      <description>A Bitcask instance is a directory, and we enforce that only one operationg system process will open that Bitcask for writing at a given time.
+At any moment, one file is active in that directory for writing by the server. When that file meets a size threshold it will be closed and a new active file will be created.
+Once a file is closed, either purposefully or due to server exit, it is considered immutabele and will never opened for writing again.</description>
+    </item>
+    
+  </channel>
+</rss>

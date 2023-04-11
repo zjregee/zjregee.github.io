@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>并发 on regee&#39;s Blog</title>
+    <link>https://zjregee.github.io/tags/%E5%B9%B6%E5%8F%91/</link>
+    <description>Recent content in 并发 on regee&#39;s Blog</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>en-us</language>
+    <lastBuildDate>Thu, 02 Dec 2021 00:00:00 +0000</lastBuildDate><atom:link href="https://zjregee.github.io/tags/%E5%B9%B6%E5%8F%91/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>从一个Lab理解协程</title>
+      <link>https://zjregee.github.io/p/%E4%BB%8E%E4%B8%80%E4%B8%AAlab%E7%90%86%E8%A7%A3%E5%8D%8F%E7%A8%8B/</link>
+      <pubDate>Thu, 02 Dec 2021 00:00:00 +0000</pubDate>
+      
+      <guid>https://zjregee.github.io/p/%E4%BB%8E%E4%B8%80%E4%B8%AAlab%E7%90%86%E8%A7%A3%E5%8D%8F%E7%A8%8B/</guid>
+      <description>今天做了6.S081的Lab Multithreading，需要实现一个最简单的协程。在很早以前，就知道了协程的概念，看了一些协程和线程的区别，一直觉得还是很模糊。直到今天才恍然大悟，不得不说，自己动手真的才是最好的学习方式。
+协程技术的本质上是一种程序控制机制。他和线程有非常多的相似之处，比如都有自己的堆栈，自己的局部变量。但是线程的切换是要陷入内核态，而协程是在用户态完成了寄存器和堆栈的切换。这就导致了某种意义上协程是可以更加高效的。
+线程可以并发运行，线程之间不能共享全局变量。
+协程不能并发运行，协程之间可以共享全局变量。
+因为协程不需要陷入内核，所以我们在使用各种语言实现自己的协程库时，需要自己实现一个汇编代码，完成寄存器的存储操作。
+这是XV6的线程切换实现。其中scheduler是一个内核中的常驻线程，一直处于一个死循环中，当这个线程被调用，就完成线程切换的操作。在线程切换中和协程切换一样。或者应该说协程切换和线程切换一样，需要保存context，即上下文。包括寄存器的值和堆栈情况。寄存器中的值就包含了程序运行的位置。下一次切换就可以继续这个位置运行。当切换线程时，需要把寄存器的值保存在内存数据结构中。
+下面是一个简单的实现线程切换的汇编代码示例。具体的汇编代码需要和程序运行的系统环境决定。
+.globl swtch swtch: sd ra, 0(a0) sd sp, 8(a0) sd s0, 16(a0) sd s1, 24(a0) sd s2, 32(a0) sd s3, 40(a0) sd s4, 48(a0) sd s5, 56(a0) sd s6, 64(a0) sd s7, 72(a0) sd s8, 80(a0) sd s9, 88(a0) sd s10, 96(a0) sd s11, 104(a0) ld ra, 0(a1) ld sp, 8(a1) ld s0, 16(a1) ld s1, 24(a1) ld s2, 32(a1) ld s3, 40(a1) ld s4, 48(a1) ld s5, 56(a1) ld s6, 64(a1) ld s7, 72(a1) ld s8, 80(a1) ld s9, 88(a1) ld s10, 96(a1) ld s11, 104(a1) ret context，协程和线程运行的上下文。</description>
+    </item>
+    
+    <item>
+      <title>lock-free programming</title>
+      <link>https://zjregee.github.io/p/lock-free-programming/</link>
+      <pubDate>Tue, 28 Sep 2021 00:00:00 +0000</pubDate>
+      
+      <guid>https://zjregee.github.io/p/lock-free-programming/</guid>
+      <description>这篇文章将对lock-free编程进行一个简单介绍。
+什么是lock-free 维基百科是这样解释的，lock-free的同义词是Non-blocking algorithm。
+In computer science, an algorithm is called non-blocking if failure or suspension of any thread cannot cause failure or suspension of another thread; for some operations, these algorithms provide a useful alternative to traditional blocking implementations. A non-blocking algorithm is lock-free if there is guaranteed system-wide progress, and wait-free if there is also guaranteed per-thread progress. &amp;ldquo;Non-blocking&amp;rdquo; was used as a synonym for &amp;ldquo;lock-free&amp;rdquo; in the literature until the introduction of obstruction-freedom in 2003.</description>
+    </item>
+    
+  </channel>
+</rss>

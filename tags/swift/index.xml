@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Swift on regee&#39;s Blog</title>
+    <link>https://zjregee.github.io/tags/swift/</link>
+    <description>Recent content in Swift on regee&#39;s Blog</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>en-us</language>
+    <lastBuildDate>Mon, 04 Oct 2021 00:00:00 +0000</lastBuildDate><atom:link href="https://zjregee.github.io/tags/swift/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>KCP之旅</title>
+      <link>https://zjregee.github.io/p/kcp%E4%B9%8B%E6%97%85/</link>
+      <pubDate>Mon, 04 Oct 2021 00:00:00 +0000</pubDate>
+      
+      <guid>https://zjregee.github.io/p/kcp%E4%B9%8B%E6%97%85/</guid>
+      <description>最近在写一个KCP的Swift实现，项目在https://github.com/zjregee/kcp-swift，把拥塞窗口去掉了，以及把大量不安全的指针运算用数组高层代替了。或许以后可以考虑在其上实现其他一些版本的拥塞控制和方法
+项目参考了KCP的C源码https://github.com/zjregee/kcp以及一定的Swift版本的https://github.com/rannger/kcp-swift
+介绍一下KCP KCP是基于UDP协议之上的ARQ协议实现。TCP虽然使用的更广泛，但是在某些实时性更高的领域，会更倾向于使用基于UDP的可靠传输协议
+KCP力求在保证可靠性的情况下提高传输速度
+KCP没有规定下层传输协议，但通常使用UDP来实现
+在网络中，我们认为传输是不可靠的，而在很多场景下我们需要的是可靠的数据，所谓的可靠，指的是数据能够正常收到，且能够顺序受到，于是就有了ARQ协议，TCP之所以可靠就是基于此
+ARQ协议（Automatic Repeat-reQuest），即自动重传请求，是传输层的错误纠正协议之一，它通过使用确认和超时两个机制，在不可靠的网络上实现可靠的信息传输
+基本特征 RTO不翻倍 选择性重传 快速重传 非延迟ACK TCP在连续ARQ协议中，不会将一连串的每个数据都响应一次，而是延迟发送ACK，目的是为了充分利用带宽，但是这样会计算出较大的RTT时间，延长了丢包时的判断过程，而KCP的ACK是否延迟发送可以调节 UNA+ACK UNA模式参考特征2和特征4，ACK模式可以参考特征3。4字节una表示cmd=81时，当前已经收到了小于una的所有数据 非退让流控 至于通常使用UDP来实现KCP的原因，第一个是UDP的头部相对于TCP的头部来说更小，第二个是KCP相对于TCP来说有太多的冗余功能，这样白白导致了很多不必要的开销
+核心函数 KCP的核心在于四个函数的实现，在这里简单介绍一下四个函数的流程
+ikcp_send 检查是否是流模式，需要合并包，将buffer中的数据尽可能的追加到snd_queue中的最后一个报文 计算分片数量 创建多个报文段对象加入snd_queue ikcp_flush 检查ikcp_update是否被调用 将所有ACK报文写入buffer 确定是否需要发送探测报文 检查是否需要发送窗口探测报文，需要的话将报文写入buffer 检查是否需要发送窗口通知报文，需要的话将报文写入buffer 计算拥塞窗口 根据拥塞窗口将数据报文从snd_queue移动到snd_buf 判断快速重传条件，跳过次数以及超时时间 将snd_buf中满足条件的报文都发送出去 将buffer中剩余报文全部发送 根据丢包情况计算ssthresh和cwnd Tips
+发送报文不是将snd_buf中的一一发送，而是必须都先写入buf 在写新报文到buf之前，需要判断buf大小是否过大，将要过大时直接将buf一次性发送 ptr、buffer、snd_queue、snd_buf ikcp_input 循环从收到的data里解包出报文段，为各个字段赋值 调用ikcp_parse_una，根据una将相应已确认送达的报文从snd_buf中删除 调用ikcp_shrink_buf，尝试向右移动snd_una 如果cmd==IKCP_CMD_ACK，即收到了ACK报文 计算RTO 将已确认送达的报文从snd_buf中删除 尝试向右移动snd_una 计算出这次input得到的最大ACK编号 如果cmd==IKCP_CMD_PUSH，即收到了数据报文 调用ikcp_ack_push将相关信息插入ACK列表中 调用ikcp_parse_data，将数据报文插入rcv_buf 在ikcp_parse_data中，会尽可能的将顺序正确的报文移入到rcv_queue中 如果cmd==IKCP_CMD_WASK，标记需要发送窗口通知报文 如果cmd==IKCP_CMD_WINS，什么都不用做，因为wnd字段前面已经取得了 调用ikcp_parse_fastack，检查snd_buf中编号小于maxack且未确认送达的报文，将其fastack加一，说明被跳过了 计算cwnd ikcp_recv 调用ikcp_peeksize，获取rcv_queue中第一个包的大小，因为需要考虑到分片 取出第一个包读入buffer rcv_queue空些了，再尝试从rcv_buf中取些报文到rcv_queue fast recover 拓展阅读 http://kaiyuan.me/2017/07/29/KCP%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90/ https://www.codedump.info/post/20201105-kcp/ https://luyuhuang.tech/2020/12/09/kcp.html </description>
+    </item>
+    
+    <item>
+      <title>Memory safety in Swift</title>
+      <link>https://zjregee.github.io/p/memory-safety-in-swift/</link>
+      <pubDate>Thu, 06 May 2021 00:00:00 +0000</pubDate>
+      
+      <guid>https://zjregee.github.io/p/memory-safety-in-swift/</guid>
+      <description>默认情况下，Swift会阻止你代码里不安全的行为。例如，Swift会保证变量在使用之前就完成初始化，在内存被回收之后就无法被访问，并且数组的索引会做越界检查
+Swift也保证同时访问同一块内存时不会冲突，通过约束代码里对于存储地址的写操作，去获取那一块内存的访问独占权。因为Swift自动管理内存，所以大部分时候你完全不需要考虑内存访问的事情。然而，理解潜在的冲突也是很重要的，可以避免你写出冲突的代码。而如果你的代码确实存在冲突，那在编译时或者运行时就会得到错误
+理解内存访问冲突 内存的访问，会发生在你给变量赋值，或者传递参数给函数时
+下面的代码就包含了读和写的访问
+// 向one所在的内存区域发起一次写操作 var one = 1 // 向one所在的内存区域发起一次读操作 print(&amp;#34;We&amp;#39;re number \(one)!&amp;#34;) 内存访问的冲突会发生在你的代码尝试同时访问同一个存储地址的时候。同一个存储地址的多个访问同时发生会造成不可预计或不一致的行为。在Swift里，有很多修改值的行为都会持续好几行代码，在修改值的过程中进行访问是有可能发生的
+如果你写过并发和多线程的代码，内存访问冲突也许是同样的问题。然而，这里访问冲突的讨论是在单线程的情景下讨论的，并没有使用并发或者多线程
+如果你曾经在单线程代码里有访问冲突，Swift可以保证你在编译或者运行时会得到错误。对于多线程的代码，可以使用Thread Sanitizer去帮助检测多线程的冲突
+Thread Sanitizer Thread Sanitizer是基于LLVM的适用于Swift和C语言的检测数据竞争的工具
+当多个线程在非同步的情况下访问同一内存且至少有一个是写操作时，就会发生数据竞争。数据竞争是非常危险的，可能导致程序的行为无法预测，甚至导致内存损坏。Thread Sanitizer还可以检测其他类型线程错误，包括未初始化的互斥锁和线程泄漏
+Thread Sanitizer的原理
+记录每一个内存访问的信息，并检测该访问是否参与竞争。代码中所有的内存访问都会被编译器转换为如下形式
+// Before *address = ...; // or: ... = *address; // After RecordAndCheckWrite(address); *address = ...; // or: ... = *address; 对性能的影响
+开启Thread Sanitizer，将使代码执行效率降低2-20倍，内存使用增加5-10倍。可以通过设置-01优化级别来提高内存利用率
+如何开启Thread Sanitizer
+Thread Sanitizer
+数据多线程访问 访问未初始化的锁 线程使用完未释放 内存访问性质 内存访问冲突时，要考虑内存访问上下文中的这三个性质：访问是读还是写，访问的时长，以及被访问的存储地址。特别是，冲突会发生在当你有两个访问符合下列的情况
+至少有一个写访问 他们访问的是同一个存储地址 他们的访问在时间线上部分重叠 读和写访问的区别很明显：一个写访问会改变存储地址，而读操作不会。存储地址是指向正在访问的东西的位置的值。内存访问的时长要么是瞬时的，要么是长期的
+如果一个访问不可能在其访问期间被其他代码访问，那么就是一个瞬时访问。正常来说，两个瞬时好访问是不可能同时发生的。大多数内存访问都是瞬时的
+func oneMore(than number: Int) -&amp;gt; Int { return number + 1 } var myNumver = 1 myNumber = oneMore(than: myNumber) print(myNumber) 然而，有几种被称为长期访问的内存访问方式，会在别的代码执行时持续进行。瞬时访问和长期访问的区别在于别的代码有没有可能在访问期间同时访问，也就是在时间线上的重叠。一个长期访问可以被别的长期访问或瞬时访问重叠</description>
+    </item>
+    
+    <item>
+      <title>函数式Swift初步</title>
+      <link>https://zjregee.github.io/p/%E5%87%BD%E6%95%B0%E5%BC%8Fswift%E5%88%9D%E6%AD%A5/</link>
+      <pubDate>Sun, 02 May 2021 00:00:00 +0000</pubDate>
+      
+      <guid>https://zjregee.github.io/p/%E5%87%BD%E6%95%B0%E5%BC%8Fswift%E5%88%9D%E6%AD%A5/</guid>
+      <description>函数在Swift中是一等值，函数可以作为参数被传递到其他函数，也可以作为其他函数的返回值。
+函数式编程可以用规范的方式将函数作为参数装配为规模更大的程序。Objective-C通过引入block实现了对一等函数的支持：你可以将函数和闭包作为参数并轻松地使用内联的方式定义他们。然而，在Objective-C中使用它们并不像在Swift中一样方便，尽管两者在语意上完全相同。
+一个简单的案例 typealias Filter = CIImage -&amp;gt; CIImage // 一个模糊滤镜 func blur(radius: Double) -&amp;gt; Filter { return { image in // .... return outputImage } } // 一个覆盖颜色滤镜 func colorOverlay(color: NSColor) -&amp;gt; Filter { return { image in // .... return outputImage } } // 链式地将两个滤镜应用到载入的图像上 let blurRadius = 5.0 let overlayColor = NSColor.redColor().colorWithAlphaComponents(0.2) let blurredImage = blur(blurRadius)(image) let overlaidImage = colorOverlay(overlayColor)(blurredImage) //简单合为一体 let result = colorOverlay(overlayColor)(blur(blurRadius)(image)) 由于括号错综复杂，失去了可读性，我们可以自定义一个运算符来组合滤镜
+func composeFilters(filter1: Filter, _ filter2: Filter) -&amp;gt; Filter { return { image in filter2(filter1(image)) } } let myFilter1 = composeFilters(blur(blurRadius), colorOverlay(overlayColor)) let result1 = myFilter1(image) infix operator &amp;gt;&amp;gt;&amp;gt; { associativity left } func &amp;gt;&amp;gt;&amp;gt; (filter: Filter, filter2: Filter) -&amp;gt; Filter { return { image in filter2(filter1(image)) } } let myFilter2 = blur(blurRadius) &amp;gt;&amp;gt;&amp;gt; colorOverlay(overlayColor) let result2 = myFilter2(image) 柯里化 func add1(x: Int, _ y : Int) -&amp;gt; Int { return x + y } add1函数接受两个整形参数并返回它们的和。然而在Swift中，我们对该函数的定义还可以有另一个版本：</description>
+    </item>
+    
+  </channel>
+</rss>

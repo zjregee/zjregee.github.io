@@ -1,0 +1,300 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Posts on regee&#39;s Blog</title>
+    <link>https://zjregee.github.io/post/</link>
+    <description>Recent content in Posts on regee&#39;s Blog</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>en-us</language>
+    <lastBuildDate>Sun, 02 Jan 2022 00:00:00 +0000</lastBuildDate><atom:link href="https://zjregee.github.io/post/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Raft中的加速日志回溯</title>
+      <link>https://zjregee.github.io/p/raft%E4%B8%AD%E7%9A%84%E5%8A%A0%E9%80%9F%E6%97%A5%E5%BF%97%E5%9B%9E%E6%BA%AF/</link>
+      <pubDate>Sun, 02 Jan 2022 00:00:00 +0000</pubDate>
+      
+      <guid>https://zjregee.github.io/p/raft%E4%B8%AD%E7%9A%84%E5%8A%A0%E9%80%9F%E6%97%A5%E5%BF%97%E5%9B%9E%E6%BA%AF/</guid>
+      <description>加速日志回溯是Raft论文实现中的一个可选功能。如果在完成6.824的过程中不实现的话，会在Lab2B、Lab2C的测试中出现问题。原因在于，当leader的appendEntries被拒时，论文默认的解决方案时反复减一回退重试，导致耗费很长时间才能找到同步位置，优化后可以一次性跳过更多的index，减少RPC往复。加速日志回溯的优化对于使陈旧的follower快速更新是有用的。
+这一优化的实现方式并不是固定的，一个可能的原因在于作者认为在大多数部署中没有必要。在MIT的Student&amp;rsquo;s Guide to Raft中提出的实现方式如下：
+如果follower的日志中没有prevLogIndex，他应该以conflictIndex = len(log)和conflictTerm = None返回。 如果follower的日志中有prevLogIndex，但是term不匹配，他应该返回conflictTerm = log[prevLogIndex].Term，然后conflictIndex的值等于在他的日志中第一个term等于conflictTerm的日志索引。 在收到有冲突的回复后，leader应该首先在其日志中搜索conflictTerm。如果他在他的日志中发现有该term的日志条目，就将nextIndex设置为其日志中这个term的最后一个日志条目索引之后的那一个位置。 如果他没有找到term等于conflictTerm的日志条目，就设置nextIndex = conflictIndex。 还有一个折半的解决方案是只使用conflictIndex，从而简化实现。但这样一来，leader有时会向follower发送更多的日志条目，而不是严格意义上世纪需要的，从而使他们达到最新状态。</description>
+    </item>
+    
+    <item>
+      <title>Xv6系列导读之Locking</title>
+      <link>https://zjregee.github.io/p/xv6%E7%B3%BB%E5%88%97%E5%AF%BC%E8%AF%BB%E4%B9%8Blocking/</link>
+      <pubDate>Fri, 03 Dec 2021 00:00:00 +0000</pubDate>
+      
+      <guid>https://zjregee.github.io/p/xv6%E7%B3%BB%E5%88%97%E5%AF%BC%E8%AF%BB%E4%B9%8Blocking/</guid>
+      <description>今天来学习一下xv6关于锁相关的实现。相信学习如何在内核中使用锁也能帮助我们在日常使用中更好地理解锁的机制。
+感兴趣的朋友可以直接看xv6 book Chapter 6以及源码的实现。
+https://pdos.csail.mit.edu/6.S081/2020/xv6/book-riscv-rev1.pdf
+https://github.com/mit-pdos/xv6-riscv
+Abstract 大多数内核，包括xv6，都是交错执行多个活动的。交错执行的一个来源是多处理器硬件：有多个CPU独立执行的计算机，如xv6的RISC-V。这些多个CPU共享物理RAM，xv6利用这种共享来维护所有CPU都能读和写的数据结构。
+这种共享造成了当CPU并行访问数据结构并更新他时如果不仔细设计这个过程可能会产生不正确的结果或损坏的数据结构。即使在单个处理器上，内核也可能在多个线程之间切换CPU运行的线程，导致他们的执行是交错进行的。以及，如果一个设备中断处理程序修改了一些可中断代码相同的数据，而中断恰好发生在了暧昧的时间点，就会损坏数据。
+Concurrency一词是指由于多处理器的并行性、线程切换或中断，导致多个指令流交错的情况。
+内核中充满了并发访问的数据。例如，两个CPU可以同时调用kalloc，从而同时从free list的头部弹出。内核设计者喜欢允许大量的并发，因为它可以通过并行性产生更多的性能，并增加响应性。
+为了在并发场景下得到正确的代码，有些方法比其他方法更容易推理。旨在实现并发性下的正确性的策略，以及支持这些策略的抽象，就被称为并发控制技术。
+Xv6使用了许多并发控制技术，这取决于情况；还有许多可能。我们接下来重点介绍一种广泛使用的技术：锁。锁提供了相互排斥的功能，确保每次只有一个CPU可以持有该锁。如果程序员将锁与每个共享数据项相关联，并且代码在使用某个项目时总是持有相关的锁，那么该项目在同一时间只能被一个CPU使用。在这种情况下，我们说锁是保护数据项的。尽管锁是一种易于理解的并发控制机制，但锁的缺点是它们会扼杀性能，因为它们会将并发操作序列化。
+值得一提的是，内核设计中的一个主要挑战是避免锁的争夺。Xv6在这方面做得很少，但是复杂的内核专门组织数据结构和算法来避免锁的争夺。The rest of this blog explains why xv6 needs locks, how xv6 implements them, and how it uses them.
+Race conditions 这里xv6 book举了一个两个进程并发调用kfree()的例子。在这里省略。
+一些bug小技巧。
+竞争的结果取决于所涉及的两个cpu的准确时间，以及它们的内存操作是如何由内存系统排序的，这可能会使竞争导致的错误难以重现和调试。例如，在调试推时添加print语句可能会改变执行的时间，从而使竞争消失。
+你可以把锁看作是对并发的关键部分的序列化，这样它们就可以一次运行一个，从而保留不变性（假设关键部分在隔离状态下是正确的）。你也可以认为由同一个锁保护的关键部分是相互原子的，因此每个关键部分只能看到来自早期关键部分的完整变化，而不会看到部分完成的更新。
+Code: Locks Xv6中有两种锁：spinlocks以及sleep-locks。我们先介绍第一个spinlocks。
+// Mutual exclusion lock. struct spinlock { uint locked; // Is the lock held? // For debugging: char *name; // Name of lock. struct cpu *cpu; // The cpu holding the lock.</description>
+    </item>
+    
+    <item>
+      <title>从一个Lab理解协程</title>
+      <link>https://zjregee.github.io/p/%E4%BB%8E%E4%B8%80%E4%B8%AAlab%E7%90%86%E8%A7%A3%E5%8D%8F%E7%A8%8B/</link>
+      <pubDate>Thu, 02 Dec 2021 00:00:00 +0000</pubDate>
+      
+      <guid>https://zjregee.github.io/p/%E4%BB%8E%E4%B8%80%E4%B8%AAlab%E7%90%86%E8%A7%A3%E5%8D%8F%E7%A8%8B/</guid>
+      <description>今天做了6.S081的Lab Multithreading，需要实现一个最简单的协程。在很早以前，就知道了协程的概念，看了一些协程和线程的区别，一直觉得还是很模糊。直到今天才恍然大悟，不得不说，自己动手真的才是最好的学习方式。
+协程技术的本质上是一种程序控制机制。他和线程有非常多的相似之处，比如都有自己的堆栈，自己的局部变量。但是线程的切换是要陷入内核态，而协程是在用户态完成了寄存器和堆栈的切换。这就导致了某种意义上协程是可以更加高效的。
+线程可以并发运行，线程之间不能共享全局变量。
+协程不能并发运行，协程之间可以共享全局变量。
+因为协程不需要陷入内核，所以我们在使用各种语言实现自己的协程库时，需要自己实现一个汇编代码，完成寄存器的存储操作。
+这是XV6的线程切换实现。其中scheduler是一个内核中的常驻线程，一直处于一个死循环中，当这个线程被调用，就完成线程切换的操作。在线程切换中和协程切换一样。或者应该说协程切换和线程切换一样，需要保存context，即上下文。包括寄存器的值和堆栈情况。寄存器中的值就包含了程序运行的位置。下一次切换就可以继续这个位置运行。当切换线程时，需要把寄存器的值保存在内存数据结构中。
+下面是一个简单的实现线程切换的汇编代码示例。具体的汇编代码需要和程序运行的系统环境决定。
+.globl swtch swtch: sd ra, 0(a0) sd sp, 8(a0) sd s0, 16(a0) sd s1, 24(a0) sd s2, 32(a0) sd s3, 40(a0) sd s4, 48(a0) sd s5, 56(a0) sd s6, 64(a0) sd s7, 72(a0) sd s8, 80(a0) sd s9, 88(a0) sd s10, 96(a0) sd s11, 104(a0) ld ra, 0(a1) ld sp, 8(a1) ld s0, 16(a1) ld s1, 24(a1) ld s2, 32(a1) ld s3, 40(a1) ld s4, 48(a1) ld s5, 56(a1) ld s6, 64(a1) ld s7, 72(a1) ld s8, 80(a1) ld s9, 88(a1) ld s10, 96(a1) ld s11, 104(a1) ret context，协程和线程运行的上下文。</description>
+    </item>
+    
+    <item>
+      <title>简易数据库实现：从0到1</title>
+      <link>https://zjregee.github.io/p/%E7%AE%80%E6%98%93%E6%95%B0%E6%8D%AE%E5%BA%93%E5%AE%9E%E7%8E%B0%E4%BB%8E0%E5%88%B01/</link>
+      <pubDate>Thu, 28 Oct 2021 00:00:00 +0000</pubDate>
+      
+      <guid>https://zjregee.github.io/p/%E7%AE%80%E6%98%93%E6%95%B0%E6%8D%AE%E5%BA%93%E5%AE%9E%E7%8E%B0%E4%BB%8E0%E5%88%B01/</guid>
+      <description>从最基本的层面看，数据库只需要做两件事：向它插入数据时，它就保存数据；之后查询时，它应该返回那些数据。
+我们先来看两个Bash函数。
+#!/bin/bash db_set() { echo &amp;#34;$1,$2&amp;#34; &amp;gt;&amp;gt; database } db_get() { grep &amp;#34;^$1,&amp;#34; database | sed -e &amp;#34;s/^$1,//&amp;#34; | tail -n 1 } 这两个函数实现了一个key-value存储。当调用db_set key value，它将在数据库中保存你输入的key和value。然后，调用db_get key，它会查找与输入key相关联的最新值并返回。
+它底层的存储格式非常简单：一个纯文本文件。其中每行包含一个key-value对，用逗号分隔。每次调用db_set即追加新内容到文件末尾，因此，如果多次更新某个键，旧版本的值不会被覆盖，而是需要查看文件中最后一次出现的键来找到最新的值，
+显然，到这里我们已经实现了之前我们提到的两个需求，插入数据和查询数据。从这个角度看，世界上最简单的数据库就这样完成了。对于简单的情况，追加到文件尾部方式通常足够高效。另一方面，如果日志文件保存了大量的记录，那么db_get函数的性会非常差。每次想查找一个键，db_get必须从头到尾扫描整个数据库文件来查找键的出现位置。
+为了高效地查找数据库中特定键的值以及满足各种操作的需要，我们需要新的更为复杂的数据结构。实现一个数据库的方式有很多，索引结构也有很多类型，在这里我们以github的一个6k star的sqlite demo为例，介绍一个B-Tree的数据库实现。
+项目地址：https://github.com/cstack/db_tutorial
+配备文档：https://cstack.github.io/db_tutorial/
+可以直接看源码，不超过一千行的实现，源码非常好理解。
+B-tree B-tree被广泛用作索引结构。作为一种1970年推出的数据结构，时至今日，它仍然是几乎所有关系数据库中的标准索引实现，许多非关系型数据库也经常使用。B-tree将数据库分解为固定大小的块或页，传统上大小为4KB，页是内部读/写的最小单元。这种设计更接近底层硬件。
+篇幅受限，这里不过多介绍B-tree的基本知识，想要详细的了解可以Google更多资料。
+数据库设计 上图是sqlite的架构设计。一个数据库查询，会通过一系列组件来检索或修改数据。
+前端包括：
+tokenizer parser code generator 前端的输入是一个SQL查询，输出是sqlite虚拟机字节码。在我们的demo里前端的主要功能就是解析并检查SQL命令，调用对应的函数执行相应的操作。
+后端包括：
+virtual machine：虚拟机把由前端生成的字节码作为指令。然后它可以对一个或多个表或索引进行操作，每个表或索引都存储在一个B树中。虚拟机本质上是一个关于字节码指令类型的switch语句。 B-tree：每个B树由许多节点组成。每个节点大小为1页，也就是4KB。B树可以通过向Pager发出命令从磁盘上检索一个页面或将其保存回磁盘。 pager：pager接受读取或写入数据页的命令。它负责读取/写入数据库文件中适当的偏移量。它还在内存中保存最近访问的页面的缓存，并确定何时需要将这些页面写回磁盘。 os interface：提供相应的系统调用。 我们给我们的数据库一些限制条件以简化编程：
+支持两种操作：插入一行和打印出所有行。 支持一个单一且硬编码的表。 上图是一个数据库中B树的存储结构的示例。叶子结点和中间节点有不同的布局。每个节点对应着1页。中间节点通过存储子节点的页号来指向子节点。B树传给pager特定的页号，pager从页缓存中返回指向对应页的指针。所有页都按照页号的顺序连续存储在数据库文件中。
+节点需要在页的头部存储一些元数据。每一个节点会存储节点种类，是否是根节点，以及父节点的页号（从而允许寻找兄弟节点的操作）。下面是每一个节点都需要的元数据大小和偏移的定义。
+/* * Common Node Header Layout */ const uint32_t NODE_TYPE_SIZE = sizeof(uint8_t); const uint32_t NODE_TYPE_OFFSET = 0; const uint32_t IS_ROOT_SIZE = sizeof(uint8_t); const uint32_t IS_ROOT_OFFSET = NODE_TYPE_SIZE; const uint32_t PARENT_POINTER_SIZE = sizeof(uint32_t); const uint32_t PARENT_POINTER_OFFSET = IS_ROOT_OFFSET + IS_ROOT_SIZE; const uint8_t COMMON_NODE_HEADER_SIZE = NODE_TYPE_SIZE + IS_ROOT_SIZE + PARENT_POINTER_SIZE; 除了这些常规的元数据，叶子节点还需要存储保存了多少key/value对。</description>
+    </item>
+    
+    <item>
+      <title>Redis中的事务实现</title>
+      <link>https://zjregee.github.io/p/redis%E4%B8%AD%E7%9A%84%E4%BA%8B%E5%8A%A1%E5%AE%9E%E7%8E%B0/</link>
+      <pubDate>Mon, 11 Oct 2021 00:00:00 +0000</pubDate>
+      
+      <guid>https://zjregee.github.io/p/redis%E4%B8%AD%E7%9A%84%E4%BA%8B%E5%8A%A1%E5%AE%9E%E7%8E%B0/</guid>
+      <description>今天在看《Redis设计与实现》，没想到看的很快，感觉这本书还是非常通俗易懂的，对Redis的实际实现也讲的比较全面，对于像我一样的小白还是非常推荐的。在这里介绍一下Redis中的事务
+Abstract 为啥要取abstract，可能是因为最近看论文有点PTSD了
+Redis通过MULTI、EXEC、WATCH等命令来实现事务功能。事务提供了一种将多个命令请求打包，然后一次性、按顺序地执行多个命令的机制，并且在事务执行期间，服务器不会中断事务而改去执行其他客户端的命令请求，它会将事务中的所有命令都执行完毕，然后才去处理其他客户端的命令请求
+事务的实现 一个事务从开始到结束通常会经历以下三个阶段：
+事务开始 命令入队 事务执行 事务开始 MULTI命令的执行标志着事务的开始
+将执行该命令的客户端从非事务状态切换至事务状态，这一切换是通过在客户端状态的flags属性中打开REDIS_MULTI标识来完成的
+这里的客户端指的是在Redis服务器中存着客户端状态的数据结构
+命令入队 当一个客户端处于非事务状态时，这个客户端发送的命令会立即被服务器执行
+但是，当一个客户端切换到事务状态之后，服务器会根据这个客户端发来的不同命令执行不同的操作
+如果客户端发送的命令为EXEC、DISCARD、WATCH、MULTI四个命令的其中一个，那么服务器立即执行这个命令 如果客户端发送的命令是EXEC、DISCARD、WATCH、MULTI四个命令以外的其他命令，那么服务器并不立即执行这个命令，而是将这个命令放入一个事务队列里面，然后向客户端返回QUEUED回复 事务队列 每个Redis客户端都有自己的事务状态，这个事务状态保存在客户端状态的mstate属性里面
+事务状态包含一个FIFO的事务队列，以及一个已入队命令的计数器，也就是事务队列的长度
+事务队列是一个multiCmd类型的数组，数组中的每个multiCmd结构都保存了一个已入队命令的相关信息，包括指向命令实现函数的指针、命令的参数，以及参数的数量
+typedef struct redisClient { // ... multiState mstate; // ... } redisClient; typedef struct multiState { multiCmd *commands; int count; } multiState; typedef struct multiCmd { robj **argv; // 参数 int argc; // 参数数量 struct redisCommand *cmd; // 命令指针 } multiCmd; 执行事务 当一个处于事务状态的客户端向服务器发送EXEC命令时，这个EXEC命令将立即被服务器执行。服务器会变遍历这个客户端的事务队列，执行队列中保存的所有命令，最后将执行命令所得的结果全部返回给客户端
+WATCH命令的实现 WATCH命令是一个乐观锁，他可以在EXEC命令执行之前，监视任意数量的数据库键，并在EXEC命令执行时，检查被监视的键是否至少有一个已经被修改过了，如果是的话，服务器将拒绝执行事务，并向客户端返回代表事务执行失败的空回复
+接下来介绍下WATCH命令的实现原理，以及事务系统如何监视某个键，并在键被修改的情况下，确保事务的安全性
+使用WATCH命令监视数据库键 每个Redis数据库都保存着一个watched_keys字典，这个字典的键是某个被WATCH命令监视的数据库键，字典的值则是一个链表，链表中记录了所有监视相应数据库键的客户端</description>
+    </item>
+    
+    <item>
+      <title>variable-precision SWAR算法</title>
+      <link>https://zjregee.github.io/p/variable-precision-swar%E7%AE%97%E6%B3%95/</link>
+      <pubDate>Mon, 11 Oct 2021 00:00:00 +0000</pubDate>
+      
+      <guid>https://zjregee.github.io/p/variable-precision-swar%E7%AE%97%E6%B3%95/</guid>
+      <description>今天看到了一个非常有意思的算法，是目前针对统计二进制中1的个数这个问题的效率最好的通用算法，在这里记录一下。
+要解决的问题 编写一个函数，输入是一个无符号整数（以二进制串的形式），返回其二进制表达式中数字位数为 &amp;lsquo;1&amp;rsquo; 的个数。这在数学上被称为计算汉明重量（Hamming Weight）。
+因为汉明重量经常被用于信息论、编码理论和密码学，针对这个问题有多种不同的算法，一些处理器甚至直接带有计算汉明重量的指令，而对于不具备这种特殊指令的普通处理器来说，目前已知效率最高的通用算法就是variable-precision SWAR算法，该算法通过一系列位移和位运算操作，可以在常数时间内计算多个字节的汉明重量，并且不需要使用任何额外的内存。在介绍这个巧妙的算法之前先介绍一些常规算法。
+遍历算法 直接循环检查给定整数n的二进制位的每一位是否是1，这个就不再赘述了。
+查表算法 优化检查操作的一个办法时使用查表法：
+对于一个有限集合来说，集合元素的排列方式是有限的。 而一个有限长度的位数组来说，它能表示的二进制位排列也是有限的。 所以，根据这个原理，我们可以直接创建一个表，表的键为某种排列的位数组，而表的值则是相应位数组中，值为1的二进制位的数量。创建了这种表以后，我们就可以根据输入的位数字进行查表，在无须对位数组的每个位进行检查的情况下，直接知道这个位数组包含了多少个值为1的二进制位。比如说，我们对于8位长的位数组创建表，我们每执行一次查表操作，就可以检查8个二进制位，和之前的遍历算法相比，通过内存的时间换空间策略，查表算法的效率提升了常数倍。
+位运算优化 n &amp;amp; (n - 1)的运算结果可以把n的二进制位中的最低位的1变为0。也就是可以帮我们减少一个1的数量，我们可以利用这个位运算的性质加速我们的检查过程。运算次数等于n的二进制位中1的个数，在最坏情况下，效率会和遍历算法接近。
+variable-precision SWAR算法 uint32_t swar(uint32_t i) { i = (i &amp;amp; 0x55555555 + ((i &amp;gt;&amp;gt; 1) &amp;amp; 0x55555555)); // 步骤1 i = (i &amp;amp; 0x33333333 + ((i &amp;gt;&amp;gt; 2) &amp;amp; 0x33333333)); // 步骤2 i = (i &amp;amp; 0x0f0f0f0f + ((i &amp;gt;&amp;gt; 4) &amp;amp; 0x0f0f0f0f)); // 步骤3 i = (i*(0x01010101) &amp;gt;&amp;gt; 24); // 步骤4 return i; } 步骤1计算出的值i的二进制表示可以按每两个二进制位为一组进行分组，各组的十进制表示就是该组的汉明重量。 步骤2计算出的值i的二进制表示可以按每四个二进制位为一组进行分组，各组的十进制表示就是该组的汉明重量。 步骤3计算出的值i的二进制表示可以按每八个二进制位为一组进行分组，各组的十进制表示就是该组的汉明重量。 步骤4的i*0x01010101语句计算出bitarray的汉明重量并记录在二进制位的最高八位，通过移位运算将汉明重量移动到最低八位，得出的结果就是bitarray的汉明重量。 swar函数每次执行可以计算32个二进制位的汉明重量，他比之前的遍历算法要快32倍，比键长为8位的查表法快4倍，并且因为swar函数是单纯的计算操作，所以它无需像查表法那样，使用额外的内存。</description>
+    </item>
+    
+    <item>
+      <title>KCP之旅</title>
+      <link>https://zjregee.github.io/p/kcp%E4%B9%8B%E6%97%85/</link>
+      <pubDate>Mon, 04 Oct 2021 00:00:00 +0000</pubDate>
+      
+      <guid>https://zjregee.github.io/p/kcp%E4%B9%8B%E6%97%85/</guid>
+      <description>最近在写一个KCP的Swift实现，项目在https://github.com/zjregee/kcp-swift，把拥塞窗口去掉了，以及把大量不安全的指针运算用数组高层代替了。或许以后可以考虑在其上实现其他一些版本的拥塞控制和方法
+项目参考了KCP的C源码https://github.com/zjregee/kcp以及一定的Swift版本的https://github.com/rannger/kcp-swift
+介绍一下KCP KCP是基于UDP协议之上的ARQ协议实现。TCP虽然使用的更广泛，但是在某些实时性更高的领域，会更倾向于使用基于UDP的可靠传输协议
+KCP力求在保证可靠性的情况下提高传输速度
+KCP没有规定下层传输协议，但通常使用UDP来实现
+在网络中，我们认为传输是不可靠的，而在很多场景下我们需要的是可靠的数据，所谓的可靠，指的是数据能够正常收到，且能够顺序受到，于是就有了ARQ协议，TCP之所以可靠就是基于此
+ARQ协议（Automatic Repeat-reQuest），即自动重传请求，是传输层的错误纠正协议之一，它通过使用确认和超时两个机制，在不可靠的网络上实现可靠的信息传输
+基本特征 RTO不翻倍 选择性重传 快速重传 非延迟ACK TCP在连续ARQ协议中，不会将一连串的每个数据都响应一次，而是延迟发送ACK，目的是为了充分利用带宽，但是这样会计算出较大的RTT时间，延长了丢包时的判断过程，而KCP的ACK是否延迟发送可以调节 UNA+ACK UNA模式参考特征2和特征4，ACK模式可以参考特征3。4字节una表示cmd=81时，当前已经收到了小于una的所有数据 非退让流控 至于通常使用UDP来实现KCP的原因，第一个是UDP的头部相对于TCP的头部来说更小，第二个是KCP相对于TCP来说有太多的冗余功能，这样白白导致了很多不必要的开销
+核心函数 KCP的核心在于四个函数的实现，在这里简单介绍一下四个函数的流程
+ikcp_send 检查是否是流模式，需要合并包，将buffer中的数据尽可能的追加到snd_queue中的最后一个报文 计算分片数量 创建多个报文段对象加入snd_queue ikcp_flush 检查ikcp_update是否被调用 将所有ACK报文写入buffer 确定是否需要发送探测报文 检查是否需要发送窗口探测报文，需要的话将报文写入buffer 检查是否需要发送窗口通知报文，需要的话将报文写入buffer 计算拥塞窗口 根据拥塞窗口将数据报文从snd_queue移动到snd_buf 判断快速重传条件，跳过次数以及超时时间 将snd_buf中满足条件的报文都发送出去 将buffer中剩余报文全部发送 根据丢包情况计算ssthresh和cwnd Tips
+发送报文不是将snd_buf中的一一发送，而是必须都先写入buf 在写新报文到buf之前，需要判断buf大小是否过大，将要过大时直接将buf一次性发送 ptr、buffer、snd_queue、snd_buf ikcp_input 循环从收到的data里解包出报文段，为各个字段赋值 调用ikcp_parse_una，根据una将相应已确认送达的报文从snd_buf中删除 调用ikcp_shrink_buf，尝试向右移动snd_una 如果cmd==IKCP_CMD_ACK，即收到了ACK报文 计算RTO 将已确认送达的报文从snd_buf中删除 尝试向右移动snd_una 计算出这次input得到的最大ACK编号 如果cmd==IKCP_CMD_PUSH，即收到了数据报文 调用ikcp_ack_push将相关信息插入ACK列表中 调用ikcp_parse_data，将数据报文插入rcv_buf 在ikcp_parse_data中，会尽可能的将顺序正确的报文移入到rcv_queue中 如果cmd==IKCP_CMD_WASK，标记需要发送窗口通知报文 如果cmd==IKCP_CMD_WINS，什么都不用做，因为wnd字段前面已经取得了 调用ikcp_parse_fastack，检查snd_buf中编号小于maxack且未确认送达的报文，将其fastack加一，说明被跳过了 计算cwnd ikcp_recv 调用ikcp_peeksize，获取rcv_queue中第一个包的大小，因为需要考虑到分片 取出第一个包读入buffer rcv_queue空些了，再尝试从rcv_buf中取些报文到rcv_queue fast recover 拓展阅读 http://kaiyuan.me/2017/07/29/KCP%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90/ https://www.codedump.info/post/20201105-kcp/ https://luyuhuang.tech/2020/12/09/kcp.html </description>
+    </item>
+    
+    <item>
+      <title>如何阅读一篇论文</title>
+      <link>https://zjregee.github.io/p/%E5%A6%82%E4%BD%95%E9%98%85%E8%AF%BB%E4%B8%80%E7%AF%87%E8%AE%BA%E6%96%87/</link>
+      <pubDate>Wed, 29 Sep 2021 00:00:00 +0000</pubDate>
+      
+      <guid>https://zjregee.github.io/p/%E5%A6%82%E4%BD%95%E9%98%85%E8%AF%BB%E4%B8%80%E7%AF%87%E8%AE%BA%E6%96%87/</guid>
+      <description>最近开始在实验室做边缘环境下的经典分布式系统算法改进方面的研究，刚开始阅读一篇比较难的论文，读的毫无头绪，被研究生学长推荐了一个读论文的方法，也就是这篇文章http://blizzard.cs.uwaterloo.ca/keshav/home/Papers/data/07/paper-reading.pdf。在这里把这个方法记录下来。
+学习读论文的重要性 在此之前我也看过一些论文，拿到一篇长十几页的论文，我总是从头开始，一句句的看过去，并且由于我的英语并不好，所以不能很好的理解上下文，也经常看到后面就忘记了前面。当这样读完一篇论文后，我的收获并没有那么大，往往只是字面意思的看了一遍。
+想要搞科研的研究人员往往会花费大量的时间去阅读大量的论文，但是大家却很少讨论如何读论文的技能。因此没有经验的人可能会有许多的努力被浪费。所以这篇文章针对这个问题，提出了一个切实可行且高效的方式去阅读论文。
+这让我想起了计算机教育中缺失的一课（https://missing-semester-cn.github.io）
+The Three-Pass Approach 阅读一篇论文应该分为三个部分，而不是直接从头读到尾。每个部分都会实现具体的目标而且依赖于前面的步骤。
+第一遍让你对这篇论文有一个大致的了解。第二遍让你掌握论文的内容，但不是细节。第三遍帮助你深入了解该论文。
+The first pass 第一遍是快速扫描，对整个论文框架有一个整体认识，你可以由此决定是否要继续下面的pass。这一遍应该需要大约5到10分钟。
+这些具体的时间都是这篇文章说的，我觉得以我的水平非常非常的的不科学wuwu
+第一遍可以包括以下几个步骤：
+仔细阅读title、abstract以及introduction 仔细阅读每个section以及sub-section的标题，但是忽略其他东西 看一下存在的数学部分，以此确定需要的理论基础 阅读这篇论文的结论 看一下论文的参考部分，寻找是否有你已经读过的资料 完成这一遍后，你应该可以回答下面的5个Cs：
+Category：这是什么类型的论文？对现有系统的分析？对数据的测量？对研究原型的描述？ Context：它与其他哪些论文有关？用哪些理论基础来分析这个问题？ Correctness：假设是否有效？ Contributions：这篇论文的主要贡献是什么？ Clarity：这篇论文写的好吗，表述清晰吗？ 如果此时你发现你对这篇论文没有兴趣，或者你对这个领域的了解不足以去理解这篇论文，又或者论文作者做出了无效的假设，你可以不继续阅读下去。
+这一遍对于那些不是你研究领域的论文来说是足够的，也可能在未来会被证明是相关的。
+The second pass 在第二遍时，要更仔细地阅读论文，但可以忽略诸如证明等细节问题。在阅读过程中，可以记下关键点，或在空白处做评论，这会对阅读起到帮助。
+仔细阅读论文中的数字、图表和插图。可以注意论文的图表是否有细节处的常见错误 记得标记相关的还没有阅读过的参考文献，以便之后可以进一步阅读，也可以让你对论文背景更好的了 对于一个有经验的读者来说，第二遍应该花上一个小时。经过这次阅读，你应该能够掌握论文的内容，向其他人总结论文的主旨，并提供支持性证据。这种详细程度已经适合于你感兴趣的论文，但对于属于你研究专长的论文还需进一步深入。
+有时，即使在第二遍结束时，你也无法理解一篇论文。这可能是因为该主题对你来说是新的，有不熟悉的术语和缩略语，或者作者可能使用了你不理解的证明或实验技术，所以论文的大部分内容是无法理解的。论文可能写得很差，没有事实依据的断言和大量的转发引用。也可能只是因为现在是深夜，你很累。你现在可以选择：
+把论文放在一边，希望你不需要了解这些内容就能在事业上获得成功 以后再看这篇论文，也许是在阅读更多的背景材料之后 坚持下去，进入第三遍 The third pass 要完全理解一篇论文，需要第三遍。第三遍的关键在于尝试虚拟地重新实现该论文：也就是说，在与作者做出相同假设的前提下，去理解并重新实现/创造该工作。通过这种比较再现和实际的论文，你不仅可以很容易的发现该论文的创新之处，甚至发现其中隐藏的问题和假设。
+这一遍需要非常注意细节，你应该找出并挑战每一个提到的假设。此外，你还可以思考如果是你，你会如何陈述这个特定的想法。在这个过程中，你还可以记下对未来工作的想法。
+这一遍对于初学者来说可能需要非常多的时间。如果完成了这一步，你应该能够根据记忆重建论文的整合结构，确定其强项和缺点，甚至指出隐含的假设、缺少的对相关工作的引用以及实验或分析技术可能存在的问题。
+最后这篇文章还介绍了在做文献调查可能需要在不熟悉的领域阅读数十篇论文时可以采用的具体方法，该兴趣的可以直接去看这篇文章。</description>
+    </item>
+    
+    <item>
+      <title>lock-free programming</title>
+      <link>https://zjregee.github.io/p/lock-free-programming/</link>
+      <pubDate>Tue, 28 Sep 2021 00:00:00 +0000</pubDate>
+      
+      <guid>https://zjregee.github.io/p/lock-free-programming/</guid>
+      <description>这篇文章将对lock-free编程进行一个简单介绍。
+什么是lock-free 维基百科是这样解释的，lock-free的同义词是Non-blocking algorithm。
+In computer science, an algorithm is called non-blocking if failure or suspension of any thread cannot cause failure or suspension of another thread; for some operations, these algorithms provide a useful alternative to traditional blocking implementations. A non-blocking algorithm is lock-free if there is guaranteed system-wide progress, and wait-free if there is also guaranteed per-thread progress. &amp;ldquo;Non-blocking&amp;rdquo; was used as a synonym for &amp;ldquo;lock-free&amp;rdquo; in the literature until the introduction of obstruction-freedom in 2003.</description>
+    </item>
+    
+    <item>
+      <title>Bitcask实现简介</title>
+      <link>https://zjregee.github.io/p/bitcask%E5%AE%9E%E7%8E%B0%E7%AE%80%E4%BB%8B/</link>
+      <pubDate>Fri, 10 Sep 2021 00:00:00 +0000</pubDate>
+      
+      <guid>https://zjregee.github.io/p/bitcask%E5%AE%9E%E7%8E%B0%E7%AE%80%E4%BB%8B/</guid>
+      <description>A Bitcask instance is a directory, and we enforce that only one operationg system process will open that Bitcask for writing at a given time.
+At any moment, one file is active in that directory for writing by the server. When that file meets a size threshold it will be closed and a new active file will be created.
+Once a file is closed, either purposefully or due to server exit, it is considered immutabele and will never opened for writing again.</description>
+    </item>
+    
+    <item>
+      <title>FAT文件系统介绍</title>
+      <link>https://zjregee.github.io/p/fat%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F%E4%BB%8B%E7%BB%8D/</link>
+      <pubDate>Sun, 18 Jul 2021 00:00:00 +0000</pubDate>
+      
+      <guid>https://zjregee.github.io/p/fat%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F%E4%BB%8B%E7%BB%8D/</guid>
+      <description>文件系统概述 在详细介绍FAT文件系统之前，我们先简单介绍一下 在Windows中比较常用的三种分区和卷管理的文件系统。
+FAT概述 FAT文件系统的特点是文件分配表（FAT），他实际上是一个位于卷的“顶部”的表。为了保护卷，FAT的两个副本被保存起来，以防止一个被损坏。此外，FAT表和根目录必须存储在一个固定的位置，以便系统的启动文件能够被正确定位。
+用FAT格式化的磁盘被分配在簇中，其大小由卷的大小决定。当一个文件被创建时，会在目录中创建一个条目，并建立包含数据的第一个簇号。FAT表中的这个条目要么表明这是文件的最后一个簇，要么指向下一个簇。
+FAT的优点
+FAT是目前应用最为广泛和获得操作系统支持最多的一种磁盘分区格式，几乎所有的操作系统都支持这一种格式。
+FAT的缺点
+在使用超过200MB的驱动器或分区时，不应使用FAT文件系统。这是因为随着卷大小的增加，FAT的性能将快速降低。无法对属于FAT分区的文件设置权限。
+FAT分区的大小在Windows NT下被限制在最大4GB，在MS-DOS下被限制在2GB。
+更新FAT表是非常重要的，也是非常耗时的。如果FAT没有定期更新，就会导致数据丢失。它很耗时，因为每次更新FAT表时，磁盘读头必须被重新定位到驱动器的逻辑轨道0。
+HPFS 概述 HPFS文件系统的出现源于对当时市场上出现的较大的硬盘进行访问的允许。此外，为了满足网络服务器市场日益增长的需求，有必要采用新的文件系统来扩展命名系统、组织和安全性。HPFS保持了FAT的目录组织，但增加了基于文件名的目录的自动排序。此外，分配的单元从簇改为物理扇区，这减少了磁盘空间的损失。
+HPFS的缺点
+由于HPFS所涉及的开销，对于一个小于200MB的卷来说，它不是一个非常有效的选择。此外，对于大于400MB的卷，会有一些性能下降。你不能在Windows NT下为HPFS设置安全。
+HPFS只在Windows NT 3.1、3.5和3.51版本下被支持。Windows NT 4.0 不能访问 HPFS 分区。
+NTFS 概述 NTFS是Microsoft公司开发的专用文件系统，从Widows NT 3.1开始称为Windows NT家族的默认文件系统。NTFS取代FAT和HPFS并进行一系列改革改进成为更加完善的安全系统，例如增强对元数据的支持，使用更高级的数据结构以提升性能、可靠性和磁盘空间利用率，并附带一系列增强功能。
+上面是对三种文件系统的一个大致介绍，可能有点宽泛，接下来我们依据微软提供的官方文档具体看一下FAT的细节与实现。
+FAT细节 首先是一些基本概念
+byte
+作为一个单元操作的一串二进制数字
+file
+一个命名的字节流，代表一个信息的集合
+sector
+一个数据单位，可以独立于其他单位被访问
+cluster
+一个由一组逻辑上连续的扇区组成的分配单元。卷内的每个簇都用簇号N来表示。一个文件的所有分配都必须是一个簇的整数倍
+partion
+一个卷内一些簇组成的的一个范围
+volume
+磁盘上的一个存储区域
+磁盘上的FAT格式有三种：
+FAT12 FAT16 FAT32 卷的结构 一个FAT文件系统的卷是由四个基本区域组成的，它们在卷上是按以下顺序排列的
+第一个是保留区域，第二个是FAT区域，第三个是根目录区域（在FAT32卷中不存在），第四个是文件和目录数据区域。
+所有的FAT文件系统最初都是为IBM PC机器结构开发的。因此，磁盘上的FAT格式的数据结构都是little endian。
+出现了一个新的名词，什么是little endian？
+Big Endian认为第一个字节是最高位字节（按照从低地址到高地址的顺序存放数据的高位字节到低位字节），而Little Endian则相反，他认为第一个字节是最低位字节
+Boot Sector 和 BPB BPB（BIOS参数块）位于卷中保留区域的第一个扇区中。这个扇区有时被称为启动扇区或第0扇区。这个扇区是卷的第一个扇区。
+所有FAT卷都必须在启动扇区有一个BPB。
+所以BPB是存储在Boot Sector中的数据，那么BPB是存了哪些数据呢？</description>
+    </item>
+    
+    <item>
+      <title>Simplified Data Processing on Large Clusters</title>
+      <link>https://zjregee.github.io/p/simplified-data-processing-on-large-clusters/</link>
+      <pubDate>Sat, 29 May 2021 00:00:00 +0000</pubDate>
+      
+      <guid>https://zjregee.github.io/p/simplified-data-processing-on-large-clusters/</guid>
+      <description>MapReduce: Simplified Data Processing on Large Clusters Abstract MapReduce是一个编程模型和一个相关的实现，用于处理和生成大型数据集。用户指定一个map函数来处理一个键/值对，生成一组中间键/值对，并指定一个reduce函数来合并与同一中间键相关的所有中间值。许多现实世界的任务都可以用这个模型来表达，以这种函数式编写的程序被自动并行化，并在一个大型的组合机集群上执行。运行时系统负责分割输入数据的细节，在一组机器上调度程序的执行，处理机器故障，以及管理所需的机器间通信。这使得没有任何并行和分布式系统经验的程序员可以轻松地利用大型分布式系统的资源。
+Introduction Google中的许多人使用MapReduce实现了数百种特殊用途的计算，这些计算处理了大量的原始数据，如抓取的文件、网络请求日志等，以计算各种衍生数据。大多数这样的计算在概念上是直接了当的。然而，输入的数据通常很大，计算必须分布在数百或数千台机器上，以便在合理的时间内完成。如何对计算进行分工，分配数据，以及处理故障等这些问题，会用大量复杂的代码掩盖最初的简单计算。
+为了处理这种复杂性，设计了一个新的抽象，它允许我们表达我们试图执行的简单计算，但将并行化、容错、数据分配和负载平衡等混乱的东西隐藏在一个库中。所以，MapReduce的主要贡献是一个简单而强大的接口，能够实现大规模计算的自动并行化和分布以及在大型商用PC集群上的高性能。
+Progrmaming Model 该计算接受一组输入键/值对，并产生一组输出键/值对。MapReduce库的用户将计算表达为两个函数，map和reduce。
+由用户编写的map函数需要一个输入对，并产生一组中间键/值对。MapReduce库将所有与同一中间键I相关的中间值分组，并将它们传递给reduce函数。reduce函数同样是由用户编写的，它接受一个中间值I和该键的一组值。它将这些值合并起来，形成一个可能更小的值集。一般来说，每次reduce调用只产生0或1个输出值。中间值通过一个迭代器提供给用户的reduce函数。这使得我们能够处理那些大到无法在内存中容纳的数值列表。
+举个🌰 考虑这样一个问题：在一大批文件中计算每个词的出现次数的问题。
+用户可以编写这样的map、reduce函数伪代码：
+map(String key, String value): // key: document name // value: document contents for each word w in value: EmitIntermediate(w, &amp;#34;1&amp;#34;); reduce(String key, Iterator values): // key: a word // values: a list of coutns int result = 0; for each v in values: result += ParseInt(v); Emit(AsString(result)); map函数给出每个单词和相关的出现次数（在这个简单的例子中只有“1”）。reduce函数将map为某一特定单词给出的所有计数相加。
+用户在使用MapReduce库时可以编写代码来填写mapreduce中规范的对象（包括输入和输出文件的名称，以及可选的调整参数），然后调用相应函数把规范对象传递给它。
+Types 理论上，用户提供的map和reduce函数应该具有如下相关联的类型：</description>
+    </item>
+    
+    <item>
+      <title>Memory safety in Swift</title>
+      <link>https://zjregee.github.io/p/memory-safety-in-swift/</link>
+      <pubDate>Thu, 06 May 2021 00:00:00 +0000</pubDate>
+      
+      <guid>https://zjregee.github.io/p/memory-safety-in-swift/</guid>
+      <description>默认情况下，Swift会阻止你代码里不安全的行为。例如，Swift会保证变量在使用之前就完成初始化，在内存被回收之后就无法被访问，并且数组的索引会做越界检查
+Swift也保证同时访问同一块内存时不会冲突，通过约束代码里对于存储地址的写操作，去获取那一块内存的访问独占权。因为Swift自动管理内存，所以大部分时候你完全不需要考虑内存访问的事情。然而，理解潜在的冲突也是很重要的，可以避免你写出冲突的代码。而如果你的代码确实存在冲突，那在编译时或者运行时就会得到错误
+理解内存访问冲突 内存的访问，会发生在你给变量赋值，或者传递参数给函数时
+下面的代码就包含了读和写的访问
+// 向one所在的内存区域发起一次写操作 var one = 1 // 向one所在的内存区域发起一次读操作 print(&amp;#34;We&amp;#39;re number \(one)!&amp;#34;) 内存访问的冲突会发生在你的代码尝试同时访问同一个存储地址的时候。同一个存储地址的多个访问同时发生会造成不可预计或不一致的行为。在Swift里，有很多修改值的行为都会持续好几行代码，在修改值的过程中进行访问是有可能发生的
+如果你写过并发和多线程的代码，内存访问冲突也许是同样的问题。然而，这里访问冲突的讨论是在单线程的情景下讨论的，并没有使用并发或者多线程
+如果你曾经在单线程代码里有访问冲突，Swift可以保证你在编译或者运行时会得到错误。对于多线程的代码，可以使用Thread Sanitizer去帮助检测多线程的冲突
+Thread Sanitizer Thread Sanitizer是基于LLVM的适用于Swift和C语言的检测数据竞争的工具
+当多个线程在非同步的情况下访问同一内存且至少有一个是写操作时，就会发生数据竞争。数据竞争是非常危险的，可能导致程序的行为无法预测，甚至导致内存损坏。Thread Sanitizer还可以检测其他类型线程错误，包括未初始化的互斥锁和线程泄漏
+Thread Sanitizer的原理
+记录每一个内存访问的信息，并检测该访问是否参与竞争。代码中所有的内存访问都会被编译器转换为如下形式
+// Before *address = ...; // or: ... = *address; // After RecordAndCheckWrite(address); *address = ...; // or: ... = *address; 对性能的影响
+开启Thread Sanitizer，将使代码执行效率降低2-20倍，内存使用增加5-10倍。可以通过设置-01优化级别来提高内存利用率
+如何开启Thread Sanitizer
+Thread Sanitizer
+数据多线程访问 访问未初始化的锁 线程使用完未释放 内存访问性质 内存访问冲突时，要考虑内存访问上下文中的这三个性质：访问是读还是写，访问的时长，以及被访问的存储地址。特别是，冲突会发生在当你有两个访问符合下列的情况
+至少有一个写访问 他们访问的是同一个存储地址 他们的访问在时间线上部分重叠 读和写访问的区别很明显：一个写访问会改变存储地址，而读操作不会。存储地址是指向正在访问的东西的位置的值。内存访问的时长要么是瞬时的，要么是长期的
+如果一个访问不可能在其访问期间被其他代码访问，那么就是一个瞬时访问。正常来说，两个瞬时好访问是不可能同时发生的。大多数内存访问都是瞬时的
+func oneMore(than number: Int) -&amp;gt; Int { return number + 1 } var myNumver = 1 myNumber = oneMore(than: myNumber) print(myNumber) 然而，有几种被称为长期访问的内存访问方式，会在别的代码执行时持续进行。瞬时访问和长期访问的区别在于别的代码有没有可能在访问期间同时访问，也就是在时间线上的重叠。一个长期访问可以被别的长期访问或瞬时访问重叠</description>
+    </item>
+    
+    <item>
+      <title>函数式Swift初步</title>
+      <link>https://zjregee.github.io/p/%E5%87%BD%E6%95%B0%E5%BC%8Fswift%E5%88%9D%E6%AD%A5/</link>
+      <pubDate>Sun, 02 May 2021 00:00:00 +0000</pubDate>
+      
+      <guid>https://zjregee.github.io/p/%E5%87%BD%E6%95%B0%E5%BC%8Fswift%E5%88%9D%E6%AD%A5/</guid>
+      <description>函数在Swift中是一等值，函数可以作为参数被传递到其他函数，也可以作为其他函数的返回值。
+函数式编程可以用规范的方式将函数作为参数装配为规模更大的程序。Objective-C通过引入block实现了对一等函数的支持：你可以将函数和闭包作为参数并轻松地使用内联的方式定义他们。然而，在Objective-C中使用它们并不像在Swift中一样方便，尽管两者在语意上完全相同。
+一个简单的案例 typealias Filter = CIImage -&amp;gt; CIImage // 一个模糊滤镜 func blur(radius: Double) -&amp;gt; Filter { return { image in // .... return outputImage } } // 一个覆盖颜色滤镜 func colorOverlay(color: NSColor) -&amp;gt; Filter { return { image in // .... return outputImage } } // 链式地将两个滤镜应用到载入的图像上 let blurRadius = 5.0 let overlayColor = NSColor.redColor().colorWithAlphaComponents(0.2) let blurredImage = blur(blurRadius)(image) let overlaidImage = colorOverlay(overlayColor)(blurredImage) //简单合为一体 let result = colorOverlay(overlayColor)(blur(blurRadius)(image)) 由于括号错综复杂，失去了可读性，我们可以自定义一个运算符来组合滤镜
+func composeFilters(filter1: Filter, _ filter2: Filter) -&amp;gt; Filter { return { image in filter2(filter1(image)) } } let myFilter1 = composeFilters(blur(blurRadius), colorOverlay(overlayColor)) let result1 = myFilter1(image) infix operator &amp;gt;&amp;gt;&amp;gt; { associativity left } func &amp;gt;&amp;gt;&amp;gt; (filter: Filter, filter2: Filter) -&amp;gt; Filter { return { image in filter2(filter1(image)) } } let myFilter2 = blur(blurRadius) &amp;gt;&amp;gt;&amp;gt; colorOverlay(overlayColor) let result2 = myFilter2(image) 柯里化 func add1(x: Int, _ y : Int) -&amp;gt; Int { return x + y } add1函数接受两个整形参数并返回它们的和。然而在Swift中，我们对该函数的定义还可以有另一个版本：</description>
+    </item>
+    
+  </channel>
+</rss>

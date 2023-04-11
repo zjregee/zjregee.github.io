@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en-us">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='最近看了好多数据库QAQ'><title>简易数据库实现：从0到1</title>
+
+<link rel='canonical' href='https://zjregee.github.io/p/%E7%AE%80%E6%98%93%E6%95%B0%E6%8D%AE%E5%BA%93%E5%AE%9E%E7%8E%B0%E4%BB%8E0%E5%88%B01/'>
+
+<link rel="stylesheet" href="/scss/style.min.css"><meta property='og:title' content='简易数据库实现：从0到1'>
+<meta property='og:description' content='最近看了好多数据库QAQ'>
+<meta property='og:url' content='https://zjregee.github.io/p/%E7%AE%80%E6%98%93%E6%95%B0%E6%8D%AE%E5%BA%93%E5%AE%9E%E7%8E%B0%E4%BB%8E0%E5%88%B01/'>
+<meta property='og:site_name' content='regee&#39;s Blog'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='数据库' /><meta property='article:published_time' content='2021-10-28T00:00:00&#43;00:00'/><meta property='article:modified_time' content='2021-10-28T00:00:00&#43;00:00'/>
+<meta name="twitter:title" content="简易数据库实现：从0到1">
+<meta name="twitter:description" content="最近看了好多数据库QAQ">
+    </head>
+    <body class="
+    article-page has-toc
+">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "dark");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex 
+    
+        extended
+    
+">
+    
+        <div id="article-toolbar">
+            <a href="https://zjregee.github.io" class="back-home">
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-chevron-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="15 6 9 12 15 18" />
+</svg>
+
+
+
+                <span>Back</span>
+            </a>
+        </div>
+    
+<main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+    <header class="article-category">
+        
+            <a href="/categories/%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/" >
+                学习笔记
+            </a>
+        
+    </header>
+    
+
+    <h2 class="article-title">
+        <a href="/p/%E7%AE%80%E6%98%93%E6%95%B0%E6%8D%AE%E5%BA%93%E5%AE%9E%E7%8E%B0%E4%BB%8E0%E5%88%B01/">简易数据库实现：从0到1</a>
+    </h2>
+
+    
+    <h3 class="article-subtitle">
+        最近看了好多数据库QAQ
+    </h3>
+    
+
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">Oct 28, 2021</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    1 min read
+                </time>
+            </div>
+        
+    </footer>
+    
+</div>
+</header>
+
+    <section class="article-content">
+    <p>从最基本的层面看，数据库只需要做两件事：向它插入数据时，它就保存数据；之后查询时，它应该返回那些数据。</p>
+<p>我们先来看两个Bash函数。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="cp">#!/bin/bash
+</span></span></span><span class="line"><span class="cl"><span class="cp"></span>
+</span></span><span class="line"><span class="cl">db_set<span class="o">()</span> <span class="o">{</span>
+</span></span><span class="line"><span class="cl">	<span class="nb">echo</span> <span class="s2">&#34;</span><span class="nv">$1</span><span class="s2">,</span><span class="nv">$2</span><span class="s2">&#34;</span> &gt;&gt; database
+</span></span><span class="line"><span class="cl"><span class="o">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">db_get<span class="o">()</span> <span class="o">{</span>
+</span></span><span class="line"><span class="cl">	grep <span class="s2">&#34;^</span><span class="nv">$1</span><span class="s2">,&#34;</span> database <span class="p">|</span> sed -e <span class="s2">&#34;s/^</span><span class="nv">$1</span><span class="s2">,//&#34;</span> <span class="p">|</span> tail -n <span class="m">1</span>
+</span></span><span class="line"><span class="cl"><span class="o">}</span>
+</span></span></code></pre></div><p>这两个函数实现了一个key-value存储。当调用db_set key value，它将在数据库中保存你输入的key和value。然后，调用db_get key，它会查找与输入key相关联的最新值并返回。</p>
+<p>它底层的存储格式非常简单：一个纯文本文件。其中每行包含一个key-value对，用逗号分隔。每次调用db_set即追加新内容到文件末尾，因此，如果多次更新某个键，旧版本的值不会被覆盖，而是需要查看文件中最后一次出现的键来找到最新的值，</p>
+<p>显然，到这里我们已经实现了之前我们提到的两个需求，插入数据和查询数据。从这个角度看，世界上最简单的数据库就这样完成了。对于简单的情况，追加到文件尾部方式通常足够高效。另一方面，如果日志文件保存了大量的记录，那么db_get函数的性会非常差。每次想查找一个键，db_get必须从头到尾扫描整个数据库文件来查找键的出现位置。</p>
+<p>为了高效地查找数据库中特定键的值以及满足各种操作的需要，我们需要新的更为复杂的数据结构。实现一个数据库的方式有很多，索引结构也有很多类型，在这里我们以github的一个6k star的sqlite demo为例，介绍一个B-Tree的数据库实现。</p>
+<blockquote>
+<p>项目地址：https://github.com/cstack/db_tutorial</p>
+<p>配备文档：https://cstack.github.io/db_tutorial/</p>
+<p>可以直接看源码，不超过一千行的实现，源码非常好理解。</p>
+</blockquote>
+<h3 id="b-tree">B-tree</h3>
+<p>B-tree被广泛用作索引结构。作为一种1970年推出的数据结构，时至今日，它仍然是几乎所有关系数据库中的标准索引实现，许多非关系型数据库也经常使用。B-tree将数据库分解为固定大小的块或页，传统上大小为4KB，页是内部读/写的最小单元。这种设计更接近底层硬件。</p>
+<blockquote>
+<p>篇幅受限，这里不过多介绍B-tree的基本知识，想要详细的了解可以Google更多资料。</p>
+</blockquote>
+<h3 id="数据库设计">数据库设计</h3>
+<p><img src="https://cstack.github.io/db_tutorial/assets/images/arch1.gif" alt=""  /></p>
+<p>上图是sqlite的架构设计。一个数据库查询，会通过一系列组件来检索或修改数据。</p>
+<p>前端包括：</p>
+<ul>
+<li>tokenizer</li>
+<li>parser</li>
+<li>code generator</li>
+</ul>
+<p>前端的输入是一个SQL查询，输出是sqlite虚拟机字节码。在我们的demo里前端的主要功能就是解析并检查SQL命令，调用对应的函数执行相应的操作。</p>
+<p>后端包括：</p>
+<ul>
+<li>virtual machine：虚拟机把由前端生成的字节码作为指令。然后它可以对一个或多个表或索引进行操作，每个表或索引都存储在一个B树中。虚拟机本质上是一个关于字节码指令类型的switch语句。</li>
+<li>B-tree：每个B树由许多节点组成。每个节点大小为1页，也就是4KB。B树可以通过向Pager发出命令从磁盘上检索一个页面或将其保存回磁盘。</li>
+<li>pager：pager接受读取或写入数据页的命令。它负责读取/写入数据库文件中适当的偏移量。它还在内存中保存最近访问的页面的缓存，并确定何时需要将这些页面写回磁盘。</li>
+<li>os interface：提供相应的系统调用。</li>
+</ul>
+<p>我们给我们的数据库一些限制条件以简化编程：</p>
+<ul>
+<li>支持两种操作：插入一行和打印出所有行。</li>
+<li>支持一个单一且硬编码的表。</li>
+</ul>
+<p><img src="https://tva1.sinaimg.cn/large/008i3skNly1gvvd8yzo4cj30tw0860sx.jpg" alt=""  /></p>
+<p><img src="https://cstack.github.io/db_tutorial/assets/images/btree6.png" alt=""  /></p>
+<p>上图是一个数据库中B树的存储结构的示例。叶子结点和中间节点有不同的布局。每个节点对应着1页。中间节点通过存储子节点的页号来指向子节点。B树传给pager特定的页号，pager从页缓存中返回指向对应页的指针。所有页都按照页号的顺序连续存储在数据库文件中。</p>
+<p>节点需要在页的头部存储一些元数据。每一个节点会存储节点种类，是否是根节点，以及父节点的页号（从而允许寻找兄弟节点的操作）。下面是每一个节点都需要的元数据大小和偏移的定义。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="cm">/*
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * Common Node Header Layout
+</span></span></span><span class="line"><span class="cl"><span class="cm"> */</span>
+</span></span><span class="line"><span class="cl"><span class="k">const</span> <span class="kt">uint32_t</span> <span class="n">NODE_TYPE_SIZE</span> <span class="o">=</span> <span class="k">sizeof</span><span class="p">(</span><span class="kt">uint8_t</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="k">const</span> <span class="kt">uint32_t</span> <span class="n">NODE_TYPE_OFFSET</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="k">const</span> <span class="kt">uint32_t</span> <span class="n">IS_ROOT_SIZE</span> <span class="o">=</span> <span class="k">sizeof</span><span class="p">(</span><span class="kt">uint8_t</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="k">const</span> <span class="kt">uint32_t</span> <span class="n">IS_ROOT_OFFSET</span> <span class="o">=</span> <span class="n">NODE_TYPE_SIZE</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="k">const</span> <span class="kt">uint32_t</span> <span class="n">PARENT_POINTER_SIZE</span> <span class="o">=</span> <span class="k">sizeof</span><span class="p">(</span><span class="kt">uint32_t</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="k">const</span> <span class="kt">uint32_t</span> <span class="n">PARENT_POINTER_OFFSET</span> <span class="o">=</span> <span class="n">IS_ROOT_OFFSET</span> <span class="o">+</span> <span class="n">IS_ROOT_SIZE</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="k">const</span> <span class="kt">uint8_t</span> <span class="n">COMMON_NODE_HEADER_SIZE</span> <span class="o">=</span>
+</span></span><span class="line"><span class="cl">    <span class="n">NODE_TYPE_SIZE</span> <span class="o">+</span> <span class="n">IS_ROOT_SIZE</span> <span class="o">+</span> <span class="n">PARENT_POINTER_SIZE</span><span class="p">;</span>
+</span></span></code></pre></div><p>除了这些常规的元数据，叶子节点还需要存储保存了多少key/value对。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="cm">/*
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * Leaf Node Header Layout
+</span></span></span><span class="line"><span class="cl"><span class="cm"> */</span>
+</span></span><span class="line"><span class="cl"><span class="k">const</span> <span class="kt">uint32_t</span> <span class="n">LEAF_NODE_NUM_CELLS_SIZE</span> <span class="o">=</span> <span class="k">sizeof</span><span class="p">(</span><span class="kt">uint32_t</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="k">const</span> <span class="kt">uint32_t</span> <span class="n">LEAF_NODE_NUM_CELLS_OFFSET</span> <span class="o">=</span> <span class="n">COMMON_NODE_HEADER_SIZE</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="k">const</span> <span class="kt">uint32_t</span> <span class="n">LEAF_NODE_HEADER_SIZE</span> <span class="o">=</span>
+</span></span><span class="line"><span class="cl">    <span class="n">COMMON_NODE_HEADER_SIZE</span> <span class="o">+</span> <span class="n">LEAF_NODE_NUM_CELLS_SIZE</span><span class="p">;</span>
+</span></span></code></pre></div><p>在叶子节点中的元数据之后，就是保存的所有key/value对。每个key/value都按照一定的序列化规则保存。基于这些设定的参数，下面就是一个叶子节点对应页的布局。中间节点的具体布局也类似，但也有自己不一样的地方。</p>
+<p><img src="https://cstack.github.io/db_tutorial/assets/images/leaf-node-format.png" alt=""  /></p>
+<h3 id="插入数据">插入数据</h3>
+<ul>
+<li>找到待插入key对应的页号以及页中的插入位置
+<ul>
+<li>找到B树的根节点</li>
+<li>如果根节点是叶子节点，在叶子节点内进行二分查找插入位置</li>
+<li>如果根节点是中间节点，找到待插入key对应的子节点，判断子节点的类型，如果子节点是叶子节点，则进行二分查找，否则继续递归查找子节点</li>
+</ul>
+</li>
+<li>插入key-value对，并根据插入情况进行B树的平衡，节点的分裂操作</li>
+</ul>
+<h3 id="相关资料">相关资料</h3>
+<p>《DDIA》</p>
+<p>LSM-Tree</p>
+<p><a class="link" href="https://cstack.github.io/db_tutorial/"  target="_blank" rel="noopener"
+    >https://cstack.github.io/db_tutorial/</a></p>
+
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/%E6%95%B0%E6%8D%AE%E5%BA%93/">数据库</a>
+        
+    </section>
+
+
+    </footer>
+
+
+    
+</article>
+
+    <aside class="related-contents--wrapper">
+    
+    
+        <h2 class="section-title">Related contents</h2>
+        <div class="related-contents">
+            <div class="flex article-list--tile">
+                
+                    
+<article class="">
+    <a href="/p/redis%E4%B8%AD%E7%9A%84%E4%BA%8B%E5%8A%A1%E5%AE%9E%E7%8E%B0/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Redis中的事务实现</h2>
+        </div>
+    </a>
+</article>
+                
+                    
+<article class="">
+    <a href="/p/bitcask%E5%AE%9E%E7%8E%B0%E7%AE%80%E4%BB%8B/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Bitcask实现简介</h2>
+        </div>
+    </a>
+</article>
+                
+                    
+<article class="">
+    <a href="/p/raft%E4%B8%AD%E7%9A%84%E5%8A%A0%E9%80%9F%E6%97%A5%E5%BF%97%E5%9B%9E%E6%BA%AF/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Raft中的加速日志回溯</h2>
+        </div>
+    </a>
+</article>
+                
+                    
+<article class="">
+    <a href="/p/xv6%E7%B3%BB%E5%88%97%E5%AF%BC%E8%AF%BB%E4%B9%8Blocking/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Xv6系列导读之Locking</h2>
+        </div>
+    </a>
+</article>
+                
+                    
+<article class="">
+    <a href="/p/%E4%BB%8E%E4%B8%80%E4%B8%AAlab%E7%90%86%E8%A7%A3%E5%8D%8F%E7%A8%8B/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">从一个Lab理解协程</h2>
+        </div>
+    </a>
+</article>
+                
+            </div>
+        </div>
+    
+</aside>
+
+     
+     
+        
+    
+
+    <footer class="site-footer">
+    <section class="copyright">
+        &copy; 
+        
+            2020 - 
+        
+        2023 regee&#39;s Blog
+    </section>
+    
+    <section class="powerby">
+        Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> <br />
+        Theme <b><a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener" data-version="3.1.0">Stack</a></b> designed by <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a>
+    </section>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer="true"
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer="true"
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.css"integrity="sha256-c0uckgykQ9v5k&#43;IqViZOZKc47Jn7KQil4/MP3ySA3F8="crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.css"integrity="sha256-SBLU4vv6CA6lHsZ1XyTdhyjJxCjPif/TRkjnsyGAGnE="crossorigin="anonymous"
+            >
+
+            </main>
+    
+        <aside class="sidebar right-sidebar sticky">
+            <section class="widget archives">
+                <div class="widget-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+                </div>
+                <h2 class="widget-title section-title">Table of contents</h2>
+                
+                <div class="widget--toc">
+                    <nav id="TableOfContents">
+  <ol>
+    <li>
+      <ol>
+        <li><a href="#b-tree">B-tree</a></li>
+        <li><a href="#数据库设计">数据库设计</a></li>
+        <li><a href="#插入数据">插入数据</a></li>
+        <li><a href="#相关资料">相关资料</a></li>
+      </ol>
+    </li>
+  </ol>
+</nav>
+                </div>
+            </section>
+        </aside>
+    
+
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.5/dist/vibrant.min.js"integrity="sha256-5NovOZc4iwiAWTYIFiIM7DxKUXKWvpVEuMEPLzcm5/g="crossorigin="anonymous"
+                defer="false"
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>

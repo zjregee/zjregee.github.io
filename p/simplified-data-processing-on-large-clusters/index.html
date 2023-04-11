@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en-us">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content='对于mapreduce论文的整理'><title>Simplified Data Processing on Large Clusters</title>
+
+<link rel='canonical' href='https://zjregee.github.io/p/simplified-data-processing-on-large-clusters/'>
+
+<link rel="stylesheet" href="/scss/style.min.css"><meta property='og:title' content='Simplified Data Processing on Large Clusters'>
+<meta property='og:description' content='对于mapreduce论文的整理'>
+<meta property='og:url' content='https://zjregee.github.io/p/simplified-data-processing-on-large-clusters/'>
+<meta property='og:site_name' content='regee&#39;s Blog'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='分布式' /><meta property='article:published_time' content='2021-05-29T00:00:00&#43;00:00'/><meta property='article:modified_time' content='2021-05-29T00:00:00&#43;00:00'/>
+<meta name="twitter:title" content="Simplified Data Processing on Large Clusters">
+<meta name="twitter:description" content="对于mapreduce论文的整理">
+    </head>
+    <body class="
+    article-page has-toc
+">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "dark");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex 
+    
+        extended
+    
+">
+    
+        <div id="article-toolbar">
+            <a href="https://zjregee.github.io" class="back-home">
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-chevron-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="15 6 9 12 15 18" />
+</svg>
+
+
+
+                <span>Back</span>
+            </a>
+        </div>
+    
+<main class="main full-width">
+    <article class="main-article">
+    <header class="article-header">
+
+    <div class="article-details">
+    
+    <header class="article-category">
+        
+            <a href="/categories/%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/" >
+                学习笔记
+            </a>
+        
+    </header>
+    
+
+    <h2 class="article-title">
+        <a href="/p/simplified-data-processing-on-large-clusters/">Simplified Data Processing on Large Clusters</a>
+    </h2>
+
+    
+    <h3 class="article-subtitle">
+        对于mapreduce论文的整理
+    </h3>
+    
+
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">May 29, 2021</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    1 min read
+                </time>
+            </div>
+        
+    </footer>
+    
+</div>
+</header>
+
+    <section class="article-content">
+    <h2 id="mapreduce-simplified-data-processing-on-large-clusters">MapReduce: Simplified Data Processing on Large Clusters</h2>
+<h3 id="abstract">Abstract</h3>
+<p>MapReduce是一个编程模型和一个相关的实现，用于处理和生成大型数据集。用户指定一个map函数来处理一个键/值对，生成一组中间键/值对，并指定一个reduce函数来合并与同一中间键相关的所有中间值。许多现实世界的任务都可以用这个模型来表达，以这种函数式编写的程序被自动并行化，并在一个大型的组合机集群上执行。运行时系统负责分割输入数据的细节，在一组机器上调度程序的执行，处理机器故障，以及管理所需的机器间通信。这使得没有任何并行和分布式系统经验的程序员可以轻松地利用大型分布式系统的资源。</p>
+<h3 id="introduction">Introduction</h3>
+<p>Google中的许多人使用MapReduce实现了数百种特殊用途的计算，这些计算处理了大量的原始数据，如抓取的文件、网络请求日志等，以计算各种衍生数据。大多数这样的计算在概念上是直接了当的。然而，输入的数据通常很大，计算必须分布在数百或数千台机器上，以便在合理的时间内完成。如何对计算进行分工，分配数据，以及处理故障等这些问题，会用大量复杂的代码掩盖最初的简单计算。</p>
+<p>为了处理这种复杂性，设计了一个新的抽象，它允许我们表达我们试图执行的简单计算，但将并行化、容错、数据分配和负载平衡等混乱的东西隐藏在一个库中。所以，MapReduce的主要贡献是一个简单而强大的接口，能够实现大规模计算的自动并行化和分布以及在大型商用PC集群上的高性能。</p>
+<h3 id="progrmaming-model">Progrmaming Model</h3>
+<p>该计算接受一组输入键/值对，并产生一组输出键/值对。MapReduce库的用户将计算表达为两个函数，map和reduce。</p>
+<p>由用户编写的map函数需要一个输入对，并产生一组中间键/值对。MapReduce库将所有与同一中间键I相关的中间值分组，并将它们传递给reduce函数。reduce函数同样是由用户编写的，它接受一个中间值I和该键的一组值。它将这些值合并起来，形成一个可能更小的值集。一般来说，每次reduce调用只产生0或1个输出值。中间值通过一个迭代器提供给用户的reduce函数。这使得我们能够处理那些大到无法在内存中容纳的数值列表。</p>
+<h4 id="举个">举个🌰</h4>
+<p>考虑这样一个问题：在一大批文件中计算每个词的出现次数的问题。</p>
+<p>用户可以编写这样的map、reduce函数伪代码：</p>
+<pre tabindex="0"><code>map(String key, String value):
+	// key:    document name
+	// value:  document contents
+	for each word w in value:
+		EmitIntermediate(w, &#34;1&#34;);
+
+reduce(String key, Iterator values):
+	// key:    a word
+	// values: a list of coutns
+	int result = 0;
+	for each v in values:
+		result += ParseInt(v);
+	Emit(AsString(result));
+</code></pre><p>map函数给出每个单词和相关的出现次数（在这个简单的例子中只有“1”）。reduce函数将map为某一特定单词给出的所有计数相加。</p>
+<p>用户在使用MapReduce库时可以编写代码来填写mapreduce中规范的对象（包括输入和输出文件的名称，以及可选的调整参数），然后调用相应函数把规范对象传递给它。</p>
+<h4 id="types">Types</h4>
+<p>理论上，用户提供的map和reduce函数应该具有如下相关联的类型：</p>
+<pre tabindex="0"><code>map    (k1, v1)        -&gt; list(k2, v2)
+reduce (k2, list(v2))  -&gt; list(v2)
+</code></pre><p>输入的键和值来自与输出键和值不同的域，中间键和值与输出键和值来自同一个域。</p>
+<h3 id="implementation">Implementation</h3>
+<p>![截屏2021-06-10 上午11.02.02](/Users/yurunjie/Library/Application Support/typora-user-images/截屏2021-06-10 上午11.02.02.png)</p>
+<blockquote>
+<p>可能会有多种关于MapReduce接口的实现，具体对于实现的选择取决于环境，每种实现可能适合其对应的环境要求和限制。接下来的部分描述了一个在Google中广泛使用的计算环境的实现。</p>
+</blockquote>
+<h4 id="execution-overview">Execution Overview</h4>
+<p>通过将输入数据自动划分为M个分割集，从而map调用可以被分布在多个机器上。输入的分割集可以由不同的机器并行处理。reduce调用是通过使用一个分区函数（例如：hash(key)mod R）将中间键空间划分为R个块来进行分配的。分区的数量R和分区函数可以由用户指定。</p>
+<p>Figure1显示了我们这里MapReduce实现的一个整体流程。根据图中的()标号进行对应的解释：</p>
+<ul>
+<li>(1) 用户程序中的MapReduce库首先将输入文件分割成M块，每块通常为16MB到64MB（用户可通过一个可选参数进行控制）。然后，他在一组机器上fork启动许多程序的副本。</li>
+<li>(2) 其中的一个特殊的副本被称为master。其他副本是由master来分配任务的worker。这里有M个map任务以及R个reduce任务需要分配。master选择空闲的workers并给他们每人分配一个map任务或者reduce任务。</li>
+<li>(3) 一个被分配map任务的worker读取相应输入分割集的内容。它从输入数据中解析键/值对，并将每个键/值对传递给用户对应的map函数。map函数产生的中间键/值对被缓冲在内存中。</li>
+<li>(4) 缓存对定期写入本地磁盘，由分区函数划分为R个区域。这些缓冲对在本地磁盘上的位置被传递给主服务器，主服务器负责将这些位置转发给负责reduce任务的worker。</li>
+<li>(5) 当master通知负责reduce worker这些位置时，这些worker使用RPC远程调用从map worker的本地磁盘读取缓冲数据。当reduce worker读取了所有中间数据后，他就会根据中间键对数据进行排序，以便所有出现的相同键都被分组在一起。如果中间数据量太大，无法装入内存，则使用外部排序。</li>
+<li>(6) reduce worker遍历已排序的中间数据，对于遇到的每个唯一的中间键，它将键和相应的中间值集传递给用户的reduce函数。reduce函数的输出被添加到这个reduce部分的最终输出文件中。</li>
+<li>当所有的map和reduce任务都完成后，master唤醒用户程序。此时，用户程序中的MapReduce调用返回给用户代码。</li>
+</ul>
+<p>MapReduce成功执行后的输出再R个输出文件中（每个reduce任务一个，文件名由用户指定）。通常，用户不需要将这R个输出文件合并到一个文件中——他们经常将这些文件作为输入传递给另一个MapReduce调用，或者在另一个分布式应用程序中使用它们，该应用程序能够处理划分为多个文件的输入。</p>
+<h4 id="master-data-structures">Master Data Structures</h4>
+<p>master保留了几个数据结构。对于每个map、reduce任务，它都存储了状态以及woker机器的身份。master将中间文件区域的位置从map任务传递到reduce任务。因此，对于每个完成的map任务，主服务器存储由map任务产生的R个中间文件区域的位置和大小。当完成map任务后，master将接收到对该位置和大小信息的更新。这些信息以增量的方式推送给正在进行reduce任务的worker。</p>
+<h4 id="fault-tolerance">Fault Tolerance</h4>
+<p>因为MapReduce库被设计为使用成百上千台机器帮助处理非常大量的数据，所以该库必须处理好机器故障等情况的出现。</p>
+<p><strong>Worker Failure</strong></p>
+<p>master定时ping每个worker。如果在一定时间内没有收到某个worker的回复，master就会给这个worker标记为failed。这个woker完成或正在进行的的任何map任务都会重置为最初的闲置状态，从而在其他worker进行重新调度。</p>
+<p>已完成的map任务在机器出现故障时都要重新执行，因为他们的输出被存储在故障机器的本地磁盘上，因此无法访问。已完成的reduce任务不需要重新执行，因为他们的输出被存储在全局文件系统中。</p>
+<p>当一个map任务先由worker A执行，然后再由worker B执行（因为A失败了），所有执行reduce任务的worker都会被通知重新执行。任何尚未从工作者A处读取数据的还原任务将从工作者B处读取数据。</p>
+<p>MapReduce可以容忍大规模的工作机器故障。</p>
+<p><strong>Master Failure</strong></p>
+<p>It is easy to make the master write periodic checkpoints of the master data structures described above. If the master task dies, a new copy can be started from the last checkpointed state. 但是，考虑到只有一个master，如果master失败了。现在的实现就会终止MapReduce计算。客户端可以检查这种情况，如果他们愿意，可以重试MapReduce操作。</p>
+<h4 id="locality">Locality</h4>
+<p>网络带宽在我们的计算环境中是一种相对稀缺的资源。我们通过输入数据（由GFS管理）存储在组成我们集群的机器的本地磁盘这一事实来节约网络带宽。GFS将每个文件分成64MB的块，并在不同的机器上存储每个块的多个副本（通常是3个副本）。MapReduce主程序考虑输入文件的位置信息，并尝试在包含相应输入数据副本的机器上调度map任务。如果做不到这一点，它就尝试在任务输入数据的副本附近调度一个map任务。当在集群中相当一部分worker运行大型MapReduce操作时，大多数输入数据都是在本地读取的，不会消耗网络带宽。</p>
+<h4 id="task-granularity">Task Granularity</h4>
+<p>像之前说的那样，我们将map阶段细分为M个任务，将reduce阶段细分为R个任务。理想情况下，M和R应该远远大于worker的数量。让每个worker执行许多不同的任务可以改善动态负载平衡，也可以在一个工作者失败时加速恢复：他所完成的许多map任务可以分散到所有其他woker上。</p>
+<p>在我们的实现中，对M和R的大小是有实际限制的，因为master必须做出O(M+R)的调度决定，并在内存中保持O(M*R)的状态（尽管，内存使用的因素影响很小）。</p>
+<p>R同时也经常收到用户的限制，因为每个reduce任务的输出最终都在一个单独的输出文件中。在实践中，我们倾向于选择M，使每个单独的任务大约是16 MB到64 MB的输入数据（以便上述的locality优化最有效），并让R变成我们期望使用的worker数量的很小的倍数。我们经常在M=200,000和R=5,000的情况下进行MapReduce计算，使用2,000台工作机。</p>
+<h4 id="backup-tasks">Backup Tasks</h4>
+<p>使得MapReduce操作总时间变长的常见原因之一是出现了“掉队者”：一台机器花了异常长的时间来完成计算中的最后几个map或reduce任务中的某个。“掉队者”出现的原因有很多：一台有坏磁盘的机器可能经常出现可纠正的错误，使其读取性能降低；集群调度系统可能在机器上安排了其他任务，由于对CPU、内存、本地磁盘或网络带宽的竞争，导致它执行MapReduce代码的速度变慢。</p>
+<p>我们有一个通用的机制来缓解掉队的问题。当MapReduce操作接近完成时，主系统会调度剩余正在执行的任务的备份执行。当主执行或备份执行完成时，任务被标记为完成。我们已经对这种机制进行了调优，因此它通常会将操作使用的计算资源增加不超过几个百分点。我们发现这大大减少了完成大型MapReduce操作的时间。</p>
+<h3 id="conclusions">Conclusions</h3>
+<p>MapReduce编程模型已经在谷歌成功地用于许多不同的目的。这一成功归结于几个原因。首先，该模型易于使用，即使对没有并行和分布式系统经验的程序员也是如此，因为它隐藏了并行化、容错、局部优化和负载平衡的细节。第二，大量的问题可以很容易地用MapReduce计算来表达。第三，我们开发了一个MapReduce的实现，它可以拓展到由数千台机器组成的大型机器集群。该实现有效地利用了这些机器资源，因此适用于在谷歌遇到的许多大型计算问题。</p>
+<p>我们从这项工作中学到了一些东西。首先，限制编程模型可以使计算易于并行化和分布，并使此类计算具有容错性。其次，网络带宽是一种稀缺资源。因此，我们系统中的许多优化都以减少通过网络发送的数据量为目标：局部优化允许我们从本地本地磁盘读取数据，并将中间数据的单个副本写入本地磁盘节省网络带宽。第三，冗余执行可以减少机器慢速的影响，处理机器故障和数据丢失。</p>
+<blockquote>
+<p>上述内容来自于对mapreduce论文的整理</p>
+<p><a class="link" href="https://pdos.csail.mit.edu/6.824/papers/mapreduce.pdf"  target="_blank" rel="noopener"
+    >https://pdos.csail.mit.edu/6.824/papers/mapreduce.pdf</a></p>
+</blockquote>
+
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/%E5%88%86%E5%B8%83%E5%BC%8F/">分布式</a>
+        
+    </section>
+
+
+    </footer>
+
+
+    
+</article>
+
+    <aside class="related-contents--wrapper">
+    
+    
+        <h2 class="section-title">Related contents</h2>
+        <div class="related-contents">
+            <div class="flex article-list--tile">
+                
+                    
+<article class="">
+    <a href="/p/raft%E4%B8%AD%E7%9A%84%E5%8A%A0%E9%80%9F%E6%97%A5%E5%BF%97%E5%9B%9E%E6%BA%AF/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Raft中的加速日志回溯</h2>
+        </div>
+    </a>
+</article>
+                
+                    
+<article class="">
+    <a href="/p/xv6%E7%B3%BB%E5%88%97%E5%AF%BC%E8%AF%BB%E4%B9%8Blocking/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Xv6系列导读之Locking</h2>
+        </div>
+    </a>
+</article>
+                
+                    
+<article class="">
+    <a href="/p/%E4%BB%8E%E4%B8%80%E4%B8%AAlab%E7%90%86%E8%A7%A3%E5%8D%8F%E7%A8%8B/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">从一个Lab理解协程</h2>
+        </div>
+    </a>
+</article>
+                
+                    
+<article class="">
+    <a href="/p/%E7%AE%80%E6%98%93%E6%95%B0%E6%8D%AE%E5%BA%93%E5%AE%9E%E7%8E%B0%E4%BB%8E0%E5%88%B01/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">简易数据库实现：从0到1</h2>
+        </div>
+    </a>
+</article>
+                
+                    
+<article class="">
+    <a href="/p/redis%E4%B8%AD%E7%9A%84%E4%BA%8B%E5%8A%A1%E5%AE%9E%E7%8E%B0/">
+        
+        
+
+        <div class="article-details">
+            <h2 class="article-title">Redis中的事务实现</h2>
+        </div>
+    </a>
+</article>
+                
+            </div>
+        </div>
+    
+</aside>
+
+     
+     
+        
+    
+
+    <footer class="site-footer">
+    <section class="copyright">
+        &copy; 
+        
+            2020 - 
+        
+        2023 regee&#39;s Blog
+    </section>
+    
+    <section class="powerby">
+        Built with <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> <br />
+        Theme <b><a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener" data-version="3.1.0">Stack</a></b> designed by <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a>
+    </section>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer="true"
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer="true"
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.css"integrity="sha256-c0uckgykQ9v5k&#43;IqViZOZKc47Jn7KQil4/MP3ySA3F8="crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.css"integrity="sha256-SBLU4vv6CA6lHsZ1XyTdhyjJxCjPif/TRkjnsyGAGnE="crossorigin="anonymous"
+            >
+
+            </main>
+    
+        <aside class="sidebar right-sidebar sticky">
+            <section class="widget archives">
+                <div class="widget-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+                </div>
+                <h2 class="widget-title section-title">Table of contents</h2>
+                
+                <div class="widget--toc">
+                    <nav id="TableOfContents">
+  <ol>
+    <li><a href="#mapreduce-simplified-data-processing-on-large-clusters">MapReduce: Simplified Data Processing on Large Clusters</a>
+      <ol>
+        <li><a href="#abstract">Abstract</a></li>
+        <li><a href="#introduction">Introduction</a></li>
+        <li><a href="#progrmaming-model">Progrmaming Model</a>
+          <ol>
+            <li><a href="#举个">举个🌰</a></li>
+            <li><a href="#types">Types</a></li>
+          </ol>
+        </li>
+        <li><a href="#implementation">Implementation</a>
+          <ol>
+            <li><a href="#execution-overview">Execution Overview</a></li>
+            <li><a href="#master-data-structures">Master Data Structures</a></li>
+            <li><a href="#fault-tolerance">Fault Tolerance</a></li>
+            <li><a href="#locality">Locality</a></li>
+            <li><a href="#task-granularity">Task Granularity</a></li>
+            <li><a href="#backup-tasks">Backup Tasks</a></li>
+          </ol>
+        </li>
+        <li><a href="#conclusions">Conclusions</a></li>
+      </ol>
+    </li>
+  </ol>
+</nav>
+                </div>
+            </section>
+        </aside>
+    
+
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.5/dist/vibrant.min.js"integrity="sha256-5NovOZc4iwiAWTYIFiIM7DxKUXKWvpVEuMEPLzcm5/g="crossorigin="anonymous"
+                defer="false"
+                >
+            </script><script type="text/javascript" src="/ts/main.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    </body>
+</html>
